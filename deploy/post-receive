@@ -1,0 +1,49 @@
+#!/bin/bash
+# post-receive
+
+# 0. Project (dir) name and script name
+PROJECT=App-IDA-Daemon
+SCRIPTNAME=ida-daemon
+
+# 1. Read STDIN (Format: "from_commit to_commit branch_name")
+#from, to, branch = ARGF.read.split " "
+
+read from to branch
+
+# 2. Only deploy if master branch was pushed
+#if (branch =~ /master$/) == nil
+#    puts "Received branch #{branch}, not deploying."
+#    exit
+#end
+
+branch=`echo $branch | sed -e 's/^.*\///'`
+if [ "x$branch" != 'xmaster' ]; then
+    echo "Received branch $branch, not deploying."
+    exit
+fi
+
+# 3. Copy files to deploy directory
+#deploy_to_dir = File.expand_path('../$PROJECT')
+#`GIT_WORK_TREE="#{deploy_to_dir}" git checkout -f master`
+#puts "DEPLOY: master(#{to}) copied to '#{deploy_to_dir}'"
+
+DEPLOY_TO=/home/mojo/$PROJECT
+GIT_WORK_TREE=$DEPLOY_TO git checkout -f master
+echo "DEPLOYED to $DEPLOY_TO"
+
+
+# 3.5 If there's a new version of this script, install it
+cp -uv /home/mojo/$PROJECT/deploy/post-receive \
+    /home/mojo/$PROJECT.git/hooks/post-receive
+
+# 4. Deployment Tasks
+# eg: Run Puppet Apply, Restart Daemons, etc
+PIDFILE=/home/mojo/$PROJECT/script/hypnotoad.pid
+if [ -f $PIDFILE ]; then
+    echo "Detected running hypnotoad; Attempting hot deployment"
+    kill -SIGUSR2 `cat $PIDFILE`
+else
+    echo "No running hypnotoad; Attempting to start one"
+    cd ../$PROJECT
+    hypnotoad /home/mojo/$PROJECT/script/$SCRIPTNAME 
+fi
