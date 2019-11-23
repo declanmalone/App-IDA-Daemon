@@ -163,7 +163,7 @@ for my $proto ("http/ws", "https/wss") {
 		    },
 		    ioloop => $ioloop,
 		},
-		'IDA::Daemon', $app_options);
+		'App::IDA::Daemon', $app_options);
 		
 	    ok(ref($server), "Server opts $proto, $listen_mode, $auth_mode?");
 	}
