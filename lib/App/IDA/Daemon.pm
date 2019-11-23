@@ -1,4 +1,4 @@
-package IDA::Daemon;
+package App::IDA::Daemon;
 use Mojo::Base 'Mojolicious';
 
 use Mojo::IOLoop::Server;
@@ -10,7 +10,7 @@ sub startup {
   my $app = $self->app;
 
   # Find our commands
-  push @{$self->commands->namespaces}, 'IDA::Command';
+  push @{$self->commands->namespaces}, 'App::IDA::Daemon::Command';
 
   # Load configuration from hash returned by config file
   my $config = $self->plugin('Config' => { 

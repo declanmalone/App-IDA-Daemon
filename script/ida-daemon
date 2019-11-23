@@ -14,4 +14,4 @@ use lib "$Bin/../lib";
 use Mojolicious::Commands;
 
 # Start command line interface for application
-Mojolicious::Commands->start_app('IDA::Daemon');
+Mojolicious::Commands->start_app('App::IDA::Daemon');

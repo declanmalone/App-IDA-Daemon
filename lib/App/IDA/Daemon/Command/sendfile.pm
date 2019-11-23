@@ -1,4 +1,4 @@
-package IDA::Command::sendfile;
+package App::IDA::Daemon::Command::sendfile;
 use Mojo::Base 'Mojolicious::Command';
 
 use strict;

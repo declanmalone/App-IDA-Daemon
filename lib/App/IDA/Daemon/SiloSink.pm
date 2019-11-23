@@ -1,4 +1,4 @@
-package IDA::SiloSink;
+package App::IDA::Daemon::SiloSink;
 use Mojo::Base 'Mojo::EventEmitter';
 
 use warnings;
@@ -157,11 +157,11 @@ __END__
 
 =head1 SYNOPSIS
 
- use IDA::SiloSink;
+ use App::IDA::Daemon::SiloSink;
  use Mojo::IOLoop::Stream;
 
  # configure class to allow creation of files under ./data
- IDA::SiloSink->config("data"); 
+ App::IDA::Daemon::SiloSink->config("data"); 
 
  # create a source stream that emits "read" events and, optionally,
  # "close" events
@@ -170,7 +170,7 @@ __END__
 
  # create a sink that subscribes to the source stream, writing the
  # data stream to ./data/bar
- my $o = IDA::SiloSink->new($stream, "read", "close", "data/bar"); 
+ my $o = App::IDA::Daemon::SiloSink->new($stream, "read", "close", "data/bar"); 
 
  # must check whether new() succeeded ...
  die "$o\n" unless ref($o);  # NB: returns error message, not undef
