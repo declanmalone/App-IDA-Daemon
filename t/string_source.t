@@ -63,7 +63,12 @@ $stream = App::IDA::Daemon::StringSource
     ->new("Mojo::IOLoop", "My String", 3);
 
 ($output, $callbacks, $got_close) = ("", 0, 0);
-$stream->once(read => sub { ++$callbacks; $output .= $_[1] });
+$stream->once(read => 
+	      sub {
+		  ++$callbacks; $output .= $_[1];
+		  # turn off the firehose
+		  $stream->stop;
+	      });
 $stream->on(close => sub { $got_close++ });
 
 $stream->start;
@@ -72,6 +77,16 @@ Mojo::IOLoop->start;
 is ($output, "My ", "Got first 3 bytes of input?");
 is ($callbacks, 1, "read callback called just once?");
 is ($got_close, 0, "Got zero close callbacks?");
+
+# Reinstate an "on" subscriber and make sure that we didn't miss any
+# of the stream:
+$stream->on(read => sub { ++$callbacks; $output .= $_[1] });
+$stream->start;
+Mojo::IOLoop->start;
+
+is ($output, "My String", "stop/start on stream OK?");
+is ($callbacks, 3, "Totalled 3 read callbacks?");
+is ($got_close, 1, "Got final close callback?");
 
 
 done_testing;
