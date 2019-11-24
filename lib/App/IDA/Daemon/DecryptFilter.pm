@@ -13,6 +13,28 @@ sub config {
     );
 }
 
+use CryptX;
+
+sub new {
+    my ($class, $source, $read, $close, $key) = @_;
+    unless ($source->isa("Mojo::EventEmitter")) {
+	warn "StringSink needs a Mojo::EventEmitter as input\n";
+	return undef;
+    }
+
+    # For now, just implement NullFilter (input -> output unchanged)
+    my $self = bless {
+	source => $source,
+	read   => $read,
+	close  => $close,
+    }, $class;
+
+    $source->on($read => sub { $self->emit(read => $_[1]) });
+    return $self unless defined($close);
+    $source->on($close => sub { $self->emit("close") });
+    $self;
+}
+
 1;
 __END__
 
