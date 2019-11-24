@@ -38,7 +38,7 @@ sub _do_chunk {
     # Queue up follow-on event or emit close. I'm using next_tick to
     # allow the caller a chance to stop us between event loop ticks,
     # and also so that it's easier to one-tick the event loop.
-    warn "in _do_chunk, string is '$self->{string}'\n";
+    #warn "in _do_chunk, string is '$self->{string}'\n";
     if ($self->{string} ne "") {
 	$self->{ioloop}->next_tick(sub { $self->_do_chunk });
     } else {
