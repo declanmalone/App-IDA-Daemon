@@ -9,6 +9,7 @@ use Test::More;
 use Test::Mojo;
 
 use Mojo::Server::Daemon;
+use Socket;
 
 use v5.20;
 use feature 'signatures';
@@ -54,7 +55,6 @@ my $o_cert = "$Bin/../certs/test/other_cert.pem";
 my $o_key  = "$Bin/../certs/test/other_key.pem";
 
 # Bail on testing if host aliases aren't set up
-use Socket;
 my $skipping = 0;
 for my $hostname ("localhost.lan", "authserver.lan") {
     print "Checking $hostname: ";
@@ -69,7 +69,7 @@ for my $hostname ("localhost.lan", "authserver.lan") {
 if ($skipping) {
     warn <<"HELP";
 
-One or more hostnames were not set up; skipping tests
+One or more hostnames were not set up; skipping tests.
 Please ensure that the following aliases for 'localhost'
 are set up in /etc/hosts so that we can use the test
 certs:
