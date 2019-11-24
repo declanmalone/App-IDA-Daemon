@@ -23,7 +23,8 @@ sub new {
 	callback => $callback
     }, $class;
 
-    $source->on($read => sub { &$callback(@_) });
+    # subscribe to upstream, but run callback/emit on self
+    $source->on($read => sub { shift; &$callback($self, @_) });
     return $self unless defined($close);
     $source->on($close => sub { $self->emit("close") });
     $self;
