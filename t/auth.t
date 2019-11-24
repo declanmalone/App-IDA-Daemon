@@ -25,7 +25,11 @@ use Carp;
 # actually working correctly, so all tests related to that are stored
 # here.
 #
-# I also test connecting to the 
+# I also test connecting to the / http(s) route. This route may not
+# actually have any functionality for a while (or ever) since the main
+# way to control the daemon will be via the websocket interface. In
+# any event, I'll also test to make sure that the https interface is
+# secure, too.
 
 # The following test certs should be installed in certs/test:
 #
@@ -48,6 +52,35 @@ my $c_cert = "$Bin/../certs/test/client_cert.pem";
 my $c_key  = "$Bin/../certs/test/client_key.pem";
 my $o_cert = "$Bin/../certs/test/other_cert.pem";
 my $o_key  = "$Bin/../certs/test/other_key.pem";
+
+# Bail on testing if host aliases aren't set up
+use Socket;
+my $skipping = 0;
+for my $hostname ("localhost.lan", "authserver.lan") {
+    print "Checking $hostname: ";
+    my $packed_ip = gethostbyname($hostname);
+    if (defined($packed_ip)) {
+	print inet_ntoa($packed_ip) . "\n"
+    } else {
+	print "Not found\n";
+	++$skipping;
+    }
+}
+if ($skipping) {
+    warn <<"HELP";
+
+One or more hostnames were not set up; skipping tests
+Please ensure that the following aliases for 'localhost'
+are set up in /etc/hosts so that we can use the test
+certs:
+
+127.0.0.1 localhost.lan
+127.0.0.2 authserver.lan
+
+HELP
+    plan skip_all => 'Need localhost aliases to test web certs';
+    exit;
+}
 
 # Code to set up a server.
 # break out conversion of server listen opts to string
@@ -166,6 +199,10 @@ for my $proto ("http/ws", "https/wss") {
 		'App::IDA::Daemon', $app_options);
 		
 	    ok(ref($server), "Server opts $proto, $listen_mode, $auth_mode?");
+
+	    # Do tests
+
+	    
 	}
     }
 }
