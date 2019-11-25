@@ -3,34 +3,54 @@ use Mojo::Base 'Mojo::EventEmitter';
 
 use warnings;
 
-# Tap into a processing pipeline with an arbitrary callback
+# Tap into a processing pipeline with arbitrary callback(s)
 
 sub new {
-    my ($class, $upstream, $read, $close, $callback) = @_;
+    my ($class, $upstream, $read, $close,
+	$read_callback, $close_callback, $opts) = @_;
     unless ($upstream->isa("Mojo::EventEmitter")) {
-	warn "StringSink needs a Mojo::EventEmitter as input\n";
+	warn "TapFilter needs a Mojo::EventEmitter as input\n";
 	return undef;
     }
-    unless ("CODE" eq ref $callback) {
-	warn "callback must be a code reference\n";
-	return undef;
-    }
-
+    $opts = {} unless defined $opts;
     my $self = bless {
+	%$opts,			# don't override our variables
 	upstream => $upstream,
 	read     => $read,
 	close    => $close,
-	read_callback => $callback,
-	close_callback => $callback,
     }, $class;
 
-    # subscribe to upstream, but run callback/emit on self
-    $upstream->on($read => sub { shift; &$callback($self, @_) });
-    unless (defined($close)) {
-	warn "TapFilter needs to subscribe to close or downstream will break\n";
-	return undef;
+    if (defined $read_callback) {
+	unless ("CODE" eq ref $read_callback) {
+	    warn "read_callback must be a code reference\n";
+	    return undef;
+	}
+	unless (defined $read) {
+	    warn "got read callback but no read event name\n";
+	    return undef;
+	}
+    } else {
+	$read_callback = sub { shift; $self->emit(read => @_) };
     }
-    $upstream->on($close => sub { $self->emit("close") });
+    if (defined $close_callback) {
+	unless ("CODE" eq ref $close_callback) {
+	    warn "close_callback must be a code reference\n";
+	    return undef;
+	}
+	unless (defined $close) {
+	    warn "got close callback but no close event name\n";
+	    return undef;
+	}
+    } else {
+	$close_callback = sub { shift; $self->emit(close => @_) };
+    }
+
+    $self->{read_callback} = $read_callback;
+    $self->{close_callback} = $close_callback;
+
+    # subscribe to upstream, but run callback/emit on self
+    $upstream->on($read  => sub { shift; &$read_callback($self, @_) });
+    $upstream->on($close => sub { shift; &$close_callback($self, @_) });
     $self;
 }
 
