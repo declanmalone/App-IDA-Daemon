@@ -10,6 +10,8 @@ use Test::Mojo;
 
 use Mojo::Promise;
 
+use App::IDA::Daemon::StringSource;
+
 use v5.20;
 use Carp;
 
@@ -53,15 +55,24 @@ qui dolorem eum fugiat quo voluptas nulla pariatur?\n";
 mkdir "$Bin/silos" unless -d "$Bin/silos";
 
 # By default, perl interpreter lets you open a string
-my $in;
-unless (open $in, "<", \$lorem) {
-    warn "Your perl interpreter doesn't support opening a string\n";
-    plan skip_all => "Can't use required PerlIO feature";
-    exit;
+my ($in, $is);
+if (0) {
+    unless (open $in, "<", \$lorem) {
+	warn "Your perl interpreter doesn't support opening a string\n";
+	plan skip_all => "Can't use required PerlIO feature";
+	exit;
+    }
+    # input stream
+    $is = Mojo::IOLoop::Stream->new($in);
+    # (but Mojo::IOLoop::Stream is having none of it)
+} else {
+    # so ...
+    $is = App::IDA::Daemon::StringSource
+	->new("Mojo::IOLoop", $lorem, 20);
+    ok(ref($is), "Made a StringSource?");
 }
 
-# input stream
-my $is = Mojo::IOLoop::Stream->new($in);
+
 
 ok(ref($is), "Create Stream from string?");
 
