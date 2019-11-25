@@ -157,7 +157,4 @@ run_chain($lorem, 0, "$Bin/silos/../silos/baz");
 # overwrite
 run_chain($sed, 0, "$Bin/silos/../silos/baz");
 
-unlink
-
-
 done_testing;
