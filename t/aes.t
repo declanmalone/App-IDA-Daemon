@@ -53,6 +53,18 @@ qui dolorem eum fugiat quo voluptas nulla pariatur?\n";
 my $message = $lorem;
 my $key = "0123456789abcdef";	# 128-bit key (16 bytes) 
 
+# warn "message is of size " . length($message) . "\n";
+#
+# The message is 446 bytes, so it's not an even multiple of 16 (the
+# AES block size). If it /was/ a multiple of the block size, I would
+# probably want to do another test to make sure that the algorithm
+# handled partial blocks at the end of the message properly.
+#
+# As it is, though, since the message /does/ have a partial block at
+# the end, I won't test the case where the message is a multiple of
+# the AES block size.
+# 
+
 # set up our processing chain: string -> enc -> dec -> string
 
 # Try out sending a byte at a time, since this may cause problems with
