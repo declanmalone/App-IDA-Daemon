@@ -25,7 +25,10 @@ sub new {
 
     # subscribe to upstream, but run callback/emit on self
     $source->on($read => sub { shift; &$callback($self, @_) });
-    return $self unless defined($close);
+    unless (defined($close)) {
+	warn "TapFilter needs to subscribe to close or downstream will break\n";
+	return undef;
+    }
     $source->on($close => sub { $self->emit("close") });
     $self;
 }
