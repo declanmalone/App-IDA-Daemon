@@ -14,7 +14,7 @@ sub config {
     );
 }
 
-use CryptX;
+#use CryptX;
 use Crypt::Mode::CBC;
 use Crypt::PRNG::RC4 qw(random_bytes);
 

@@ -13,7 +13,9 @@ sub config {
     );
 }
 
-use CryptX;
+#use CryptX;
+use Crypt::Mode::CBC;
+use Crypt::PRNG::RC4 qw(random_bytes);
 
 sub new {
     my ($class, $source, $read, $close, $key) = @_;
@@ -27,11 +29,40 @@ sub new {
 	source => $source,
 	read   => $read,
 	close  => $close,
+	iv     => undef,
     }, $class;
 
-    $source->on($read => sub { $self->emit(read => $_[1]) });
-    return $self unless defined($close);
-    $source->on($close => sub { $self->emit("close") });
+    # Set up the decryptor in CBC mode
+    my $dec = Crypt::Mode::CBC->new($settings{cipher});
+    unless (defined $dec) {
+	warn "Failed to create $settings{cipher} decryptor in CBC mode\n";
+	return undef;
+    }
+    # we start the decryptor within the callback
+    
+    $source->on($read =>
+		sub {
+		    my ($s, $indata) = @_;
+		    if (!defined $self->{iv}) {
+			if (length($indata) < 16) {
+			    die "DecryptFilter needs a 16-byte iv to start\n";
+			}
+			my $iv = substr($indata, 0, 16, '');
+			$dec->start_decrypt($key, $iv);
+			$self->{iv} = $iv;
+		    }
+		    $self->emit(read => $dec->add($indata));
+		});
+    unless (defined $close) {
+	# On eof, we need to finish the encryption
+	warn "DecryptFilter must subscribe to a close event\n";
+	return undef;
+    };
+    $source->on($close =>
+		sub {
+		    $self->emit(read => $dec->finish);
+		    $self->emit("close")
+		});
     $self;
 }
 
