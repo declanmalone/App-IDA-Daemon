@@ -78,9 +78,6 @@ $message = "Sending this";
 $output  = "";
 $tapped  = "";
 
-# Simple source string -> tap -> sink string pipeline
-# The tap simply copies data as it passes
-
 $src = App::IDA::Daemon::StringSource
     ->new("Mojo::IOLoop", $message, 2);
 ok (ref($src), "new StringSource?");
@@ -123,7 +120,10 @@ my $tap3 = App::IDA::Daemon::TapFilter
 	      $got_close_callback++;
 	      $close_called_from = $self;
 	      $got_baton++ if $data eq "baton";
-	  });
+	      # also check accessing our optional variable
+	      $self->{counter}++;
+	  },
+	  { counter => 600 });
 ok (ref($tap3), "new (check) TapFilter?");
 
 # Start the chain
@@ -133,12 +133,35 @@ Mojo::IOLoop -> start;
 isnt ($output, "", "Output data not empty?");
 is ($tapped, $output, "Tapped data same as chain output?");
 
-is ($got_close_callback, 1, "Default close callback raised?");
+is ($got_close_callback, 1, "tap3 close callback raised?");
 is ($tap3, $close_called_from, "Close came from tap3?");
 
 ok ($got_close_callback, "Got close callback in tap3?");
 ok ($got_baton, "Got baton in tap3");
 
+is ($tap3->{counter}, 601, "option passed to tap3 OK?");
 
+done_testing; exit 0;
+
+# Experimental:  Can we bless it as a different class?
+my $class = "App::IDA::Daemon::ToLowerFilter";
+my $lower = App::IDA::Daemon::TapFilter::new(
+    $class, $tap3, "read", "close",
+    sub { $_[0]->emit(read => lc $_[1]) }
+);
+
+# yes to this:
+is (ref($lower), $class, "Bless with a different class name?");
+
+# no to this unless we use $class and it includes ISA
+use App::IDA::Daemon::ToLowerFilter;
+
+ok ($lower->isa("Mojo::EventEmitter"), "Still an emitter?");
+
+# I was hoping to use this sort of idiom to create various different
+# filters, each reusing the TapFilter code, only overriding the
+# constructor and supplying its own callbacks.
+#
+# Obviously, we still need to create classes to make this work...
 
 done_testing;

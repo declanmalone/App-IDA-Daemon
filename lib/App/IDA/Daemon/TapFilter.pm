@@ -148,11 +148,11 @@ The name of the upstream "close" event to subscribe to.
 
 =item read_callback
 
-The read callback passed to the constructor (undef for none).
+The read callback in use (a user-supplied one, or default one)
 
 =item close_callback
 
-The close callback passed to the constructor (undef for none).
+The close callback in use (a user-supplied one, or default one)
 
 =back
 
