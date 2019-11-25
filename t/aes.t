@@ -24,6 +24,10 @@ use_ok("App::IDA::Daemon::DecryptFilter");
 use App::IDA::Daemon::StringSource;
 use App::IDA::Daemon::StringSink;
 
+# and tap into the middle
+use App::IDA::Daemon::TapFilter;
+
+
 my $lorem = "Lorem ipsum dolor sit amet, consectetur adipiscing elit,
 sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut
 enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi
@@ -65,8 +69,19 @@ my $enc = App::IDA::Daemon::EncryptFilter
 
 ok (ref($enc), "new Encoder?");
 
+# insert a tap that copies the data stream between enc/dec
+my $tapped = '';
+my $tap = App::IDA::Daemon::TapFilter
+    ->new($enc, "read", undef,
+	  sub {
+	      my $data = $_[1];
+	      $tapped .= $data;
+	      $_[0]->emit("read" => $data);
+	  });
+
+# and wire decoder to be downstream of the tap
 my $dec = App::IDA::Daemon::DecryptFilter
-    ->new($enc, "read", "close", $key);
+    ->new($tap, "read", "close", $key);
 
 ok (ref($dec), "new Decoder?");
 
@@ -81,5 +96,6 @@ $source->start;
 Mojo::IOLoop->start;
 
 is ($output, $message, "Input/Output messages match?");
+isnt ($message, $tapped, "Encoder actually transformed data?");
 
 done_testing;
