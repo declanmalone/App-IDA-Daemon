@@ -72,7 +72,7 @@ ok (ref($enc), "new Encoder?");
 # insert a tap that copies the data stream between enc/dec
 my $tapped = '';
 my $tap = App::IDA::Daemon::TapFilter
-    ->new($enc, "read", undef,
+    ->new($enc, "read", "close",
 	  sub {
 	      my $data = $_[1];
 	      $tapped .= $data;

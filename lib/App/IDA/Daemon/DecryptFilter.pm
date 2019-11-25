@@ -60,6 +60,7 @@ sub new {
     };
     $source->on($close =>
 		sub {
+		    # warn "DecryptFilter responding to close\n";
 		    $self->emit(read => $dec->finish);
 		    $self->emit("close")
 		});
