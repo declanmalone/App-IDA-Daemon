@@ -71,7 +71,7 @@ my $key = "0123456789abcdef";	# 128-bit key (16 bytes)
 # the encryption/decryption routines themselves, since they work on
 # blocks of data.
 
-my $chunk_size = 16;
+my $chunk_size = 1;
 
 my $source = App::IDA::Daemon::StringSource
     ->new("Mojo::IOLoop", $message, $chunk_size);
