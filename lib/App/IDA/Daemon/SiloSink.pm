@@ -96,7 +96,7 @@ sub new {
 	last;
     }
     return "$$path not under an allowed directory" unless $allowed;
-    return "$$path is a directory" if (-d $path);
+    return "$$path is a directory" if (-d $$path);
 
     warn "We seem to be able to write to $basename in $dirname\n";
 

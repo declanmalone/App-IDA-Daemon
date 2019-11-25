@@ -64,17 +64,14 @@ if (0) {
     }
     # input stream
     $is = Mojo::IOLoop::Stream->new($in);
-    # (but Mojo::IOLoop::Stream is having none of it)
+    ok(ref($is), "Create Stream from string?");
+    # (but Mojo::IOLoop::Stream complains when I come to use it)
 } else {
     # so ...
     $is = App::IDA::Daemon::StringSource
 	->new("Mojo::IOLoop", $lorem, 20);
     ok(ref($is), "Made a StringSource?");
 }
-
-
-
-ok(ref($is), "Create Stream from string?");
 
 sub unlink_if_exists {
     unlink $_[0] if -f $_[0];
@@ -102,13 +99,65 @@ ok($is->has_subscribers("close"), "Subscribed to close?");
 ok(-f "$Bin/silos/output", "Created file?");
 is(0, (stat "$Bin/silos/output")[7], "File size zero?");
 
-# Will use a promise to track completion of chain
-my $promise = Mojo::Promise->new;
+my $writer_closed = 0;
 
-$writer->on(close => sub { $promise->resolve(shift) });
+$writer->on(close => sub { $writer_closed++ });
 
 $is->start;
+Mojo::IOLoop->start;
 
+is ($writer_closed, 1, "Writer raised 'close' event?");
+
+use IO::All;
+
+my $slurp = io->file("$Bin/silos/output")->slurp;
+
+is ($lorem, $slurp, "Lorem text stored to silos/output?");
+
+# it's tedious to build the chains manually...
+
+sub run_chain {
+    my ($text, $expect_fail, $file) = @_;
+
+    my $source = App::IDA::Daemon::StringSource
+	->new("Mojo::IOLoop", $text, 20);
+    ok(ref($source), "Failed to make string source");
+
+    my $writer = App::IDA::Daemon::SiloSink
+	->new($source, "read", "close", $file);
+    if ($expect_fail) {
+	ok(!ref($writer), "$expect_fail (got ref " . ref($writer) . ")");
+	return;
+    }
+    $source->start;
+    Mojo::IOLoop->start;
+
+    my $slurp = io->file($file)->slurp;
+    ok (-f $file, "File '$file' created?");
+    is ($text, $slurp, "Text stored in $file?");
+}
+
+# recall that we're allow to write files under $Bin/silos
+run_chain($lorem, "Expect fail: is silo dir", "$Bin/silos/");
+
+# create subdirs?
+unlink_if_exists("$Bin/silos/foo/bar/sed");
+rmdir "$Bin/silos/foo/bar" if -d "$Bin/silos/foo/bar";
+run_chain($sed, 0, "$Bin/silos/foo/bar/sed");
+
+# try writing to the new subdir itself
+run_chain($lorem, "Expect fail: is dir", "$Bin/silos/foo/bar");
+
+# chicanery
+run_chain($lorem, "Expect fail: too many ..", "$Bin/silos/../foo");
+
+# This should be good, though
+run_chain($lorem, 0, "$Bin/silos/../silos/baz");
+
+# overwrite
+run_chain($sed, 0, "$Bin/silos/../silos/baz");
+
+unlink
 
 
 done_testing;
