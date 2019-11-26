@@ -165,34 +165,36 @@ croak "build_server: listen string?" unless
         rendez => 'https://*:9001', verify => 1, })
     eq "https://*:9001?verify=1";
 
-my $app_options = {
-    proto => "http+unix",
-    auth_mode => "server",
-    auth_cns  => {  # ignored if not doing mutual auth
-	"localhost.lan" => "yes"
-    },
-};
+my $app_options;
+
 
 # This script will test four specific ways of setting up a server:
 #
 # 1. insecure http listening on a port
 # 2. secure   http listening on a private unix domain socket
-# 3. insecure https listening on a port, with server-only authentication
+# 3. insecure https listening on a port with server-only authentication
 # 4. secure   https listening on a port with mutual authentication
 
+# 1. insecure http listening on a port
 my ($t,$ua,$server,$ioloop,$port,$rendez);
 $ioloop  = Mojo::IOLoop->singleton;
 $port    = Mojo::IOLoop::Server->generate_port;
-$rendez  = "https://authserver.lan:$port";
-$rendez  = "http+unix://%2Ftmp%2Fida_daemon.sock";
+$rendez  = "http://authserver.lan:$port";
 my @key_args = ();
 my $verify = 0;
     
+$app_options = {
+    proto => "http",
+    auth_mode => "none",
+    auth_cns  => {  # ignored if not doing mutual auth
+	"localhost.lan" => "yes"
+    }
+};
 $server = build_server(
     {
         listen => {
             rendez => $rendez,
-            verify => 1,
+            verify => $verify,
 	    @key_args,
         },
         ioloop => $ioloop,
@@ -202,7 +204,7 @@ $t = Test::Mojo->new;
 
 say "GET $rendez/";
 $t->ua(Mojo::UserAgent->new(
-           ioloop=>$ioloop,
+           ioloop => $ioloop,
            ca     => $ca,
        ));
 $t->get_ok("$rendez/")->status_is(200)
@@ -210,10 +212,143 @@ $t->get_ok("$rendez/")->status_is(200)
 
 $t->websocket_ok("$rendez/sha")->status_is(101);
 
+#done_testing; exit;
+
+# 2. secure   http listening on a private unix domain socket
+
+unlink "/tmp/ida_daemon.sock" if -f "/tmp/ida_daemon.sock";
+umask 077;      # make socket only accessible to us
+
+$rendez  = "http+unix://%2Ftmp%2Fida_daemon.sock";
+$app_options = {
+    proto => "http",
+    auth_mode => "none",
+};
+$server = build_server(
+    {
+        listen => {
+            rendez => $rendez,
+            verify => $verify,
+	    @key_args,
+        },
+        ioloop => $ioloop,
+    },
+    'App::IDA::Daemon', $app_options);
+$t = Test::Mojo->new;
+
+say "GET $rendez/";
+$t->ua(Mojo::UserAgent->new(
+           ioloop => $ioloop,
+           ca     => $ca,
+       ));
+$t->get_ok("$rendez/")->status_is(200)
+    ->content_like(qr/Mojolicious/i);
+
+$t->websocket_ok("$rendez/sha")->status_is(101);
+
+
+# 3. insecure https listening on a port with server-only authentication
+$port    = Mojo::IOLoop::Server->generate_port;
+$rendez  = "https://authserver.lan:$port";
+$app_options = {
+    proto => "https",
+    auth_mode => "server",
+    auth_cns  => {  # ignored if not doing mutual auth
+	"localhost.lan" => "yes"
+    }
+};
 @key_args = (
     ca     => $ca,
     key    => $s_key,
     cert   => $s_cert,
 );
+$server = build_server(
+    {
+        listen => {
+            rendez => $rendez,
+            verify => $verify,
+	    @key_args,
+        },
+        ioloop => $ioloop,
+    },
+    'App::IDA::Daemon', $app_options);
+$t = Test::Mojo->new;
+
+say "GET $rendez/";
+$t->ua(Mojo::UserAgent->new(
+           ioloop => $ioloop,
+           ca     => $ca,
+       ));
+$t->get_ok("$rendez/")->status_is(200)
+    ->content_like(qr/Mojolicious/i);
+
+$t->websocket_ok("$rendez/sha")->status_is(101);
+
+#done_testing; exit;
+
+# 4. secure   https listening on a port with mutual authentication
+$port    = Mojo::IOLoop::Server->generate_port;
+$rendez  = "https://authserver.lan:$port";
+$verify = 1;
+$app_options = {
+    proto => "https",
+    auth_mode => "mutual",
+    auth_cns  => {  # ignored if not doing mutual auth
+	"localhost.lan" => "yes"
+    }
+};
+
+# Test three sub-cases:
+#
+# 4a. client doesn't provide cert
+# 4b. client provides unauthorised cert
+# 4c. client provides authorised cert
+
+# All three use the same server. Only ua setup is different.
+$server = build_server(
+    {
+        listen => {
+            rendez => $rendez,
+            verify => $verify,
+	    @key_args,
+        },
+        ioloop => $ioloop,
+    },
+    'App::IDA::Daemon', $app_options);
+$t = Test::Mojo->new;
+
+# 4a. client doesn't provide cert
+$t->ua(Mojo::UserAgent->new(
+           ioloop => $ioloop,
+           ca     => $ca,
+       ));
+$t->get_ok("$rendez/")->status_is(403)->content_like(qr/no client cert/i);
+
+# don't use websocket_ok because that implies a successful handshake
+$t->get_ok("$rendez/sha")->status_is(403);
+
+# 4b. client provides unauthorised cert
+$t->ua(Mojo::UserAgent->new(
+           ioloop => $ioloop,
+           ca     => $ca,
+	   key    => $o_key,
+	   cert   => $o_cert,
+       ));
+$t->get_ok("$rendez/")->status_is(403)->content_like(qr/not on the list/i);
+
+# don't use websocket_ok because that implies a successful handshake
+$t->get_ok("$rendez/sha")->status_is(403);
+
+# 4c. client provides authorised cert
+$t->ua(Mojo::UserAgent->new(
+           ioloop => $ioloop,
+           ca     => $ca,
+	   key    => $c_key,
+	   cert   => $c_cert,
+       ));
+$t->get_ok("$rendez/")->status_is(200)->content_like(qr/Mojolicious/);
+
+$t->websocket_ok("$rendez/sha")->status_is(101);
+
 
 done_testing;

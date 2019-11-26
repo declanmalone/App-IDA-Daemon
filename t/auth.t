@@ -192,7 +192,7 @@ for my $proto ("http/ws", "https/wss") {
                 auth_mode => $auth_mode,
                 auth_cns  => {  # ignored if not doing mutual auth
                     "localhost.lan" => "yes"
-                },
+                }
             };
 
             # Build server with generated options
