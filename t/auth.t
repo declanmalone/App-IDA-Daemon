@@ -233,10 +233,10 @@ for my $proto ("http/ws", "https/wss") {
                                 )) or die;
                 #substr($rendez,0,6)='';
                 say "GET $rendez/";
-                $t->get_ok->("$rendez/")->status_is(200) or die;
+                $t->get_ok("$rendez/")->status_is(200) or die;
                 my $wsrend = "$rendez/";
                 $wsrend =~ s/^http/ws/;
-                #$t->websocket_ok->("$rendez/sha")->status_is(101);
+                $t->websocket_ok("$rendez/sha")->status_is(101);
             }
         }
     }
