@@ -60,7 +60,7 @@ sub new {
 	filename => $filename
     }, $class;
 
-    warn "Testing path $$path\n";
+    # warn "Testing path $$path\n";
     
     # Mojo::File's to_abs doesn't handle '..' properly/securely.
     # Maybe I should use Cwd::abs_path instead...
@@ -70,7 +70,7 @@ sub new {
     my @components = @{$path->to_array}; # list context needed!
     my @rebuild;
     for my $bit (@components) {
-	warn "Testing bit $bit\n";
+	# warn "Testing bit $bit\n";
 	if ($bit ne "..") {
 	    push @rebuild, $bit if $bit ne ".";
 	} else {
@@ -91,14 +91,14 @@ sub new {
     foreach my $silo (@allowed_dirs) {
 	my $len = length $silo;
 	next if ($silo ne substr $path->to_string, 0, $len);
-	warn "$$path is under allowed dir $silo\n";
+	# warn "$$path is under allowed dir $silo\n";
 	$allowed = 1;
 	last;
     }
     return "$$path not under an allowed directory" unless $allowed;
     return "$$path is a directory" if (-d $$path);
 
-    warn "We seem to be able to write to $basename in $dirname\n";
+    # warn "We seem to be able to write to $basename in $dirname\n";
 
     # create dir if it doesn't exist
     $dirname->make_path unless -d $dirname->to_string;
