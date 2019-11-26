@@ -289,7 +289,7 @@ $t->websocket_ok("$rendez/sha")->status_is(101);
 # 4. secure   https listening on a port with mutual authentication
 $port    = Mojo::IOLoop::Server->generate_port;
 $rendez  = "https://authserver.lan:$port";
-$verify = 1;
+$verify = 1;			# new option!
 $app_options = {
     proto => "https",
     auth_mode => "mutual",
@@ -348,6 +348,7 @@ $t->ua(Mojo::UserAgent->new(
        ));
 $t->get_ok("$rendez/")->status_is(200)->content_like(qr/Mojolicious/);
 
+# we get 101 if we went through mutual auth *and* ws protocol negotiation 
 $t->websocket_ok("$rendez/sha")->status_is(101);
 
 
