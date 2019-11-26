@@ -13,6 +13,7 @@ use Socket;
 
 use v5.20;
 use feature 'signatures';
+use warnings;
 no warnings 'experimental::signatures';
 use Carp;
 
@@ -112,10 +113,19 @@ sub build_server ($sopts, $appname, $opts) {
     my @args = ();
     @args = ( config => { config_override => 1, %$opts } ) 
         if ref $opts eq 'HASH';
-    $server->build_app($appname, @args);
+    $server->build_app($appname, @args) or die;
     $server->start;
     return $server;
 }
+
+# Test out build_server
+my $app;
+eval { $app = build_server ({listen => {}}, 'App::IDA::Daemon') };
+croak "build_server: requires rendez?" unless $@;
+croak "build_server: listen string?" unless
+    listen_string({
+        rendez => 'https://*:9001', verify => 1, })
+    eq "https://*:9001?verify=1";
 
 # Testing matrix:
 #
@@ -144,66 +154,91 @@ sub build_server ($sopts, $appname, $opts) {
 
 for my $proto ("http/ws", "https/wss") {
     for my $listen_mode ("port", "unix") {
-	for my $auth_mode ("mutual", "server") {
+        for my $auth_mode ("mutual", "server") {
 
-	    next if $proto eq "http/ws" and $auth_mode eq "mutual";
-	    next if $proto eq "https/wss" and $listen_mode ne "port";
+            next if $proto eq "http/ws" and $auth_mode eq "mutual";
+            next if $proto eq "https/wss" and $listen_mode ne "port";
 
-	    my ($t,$ua,$ioloop);
+            my ($t,$ua,$ioloop);
 
-	    # Server options
-	    my ($server,$port,$rendez,$prefix,@keyargs,$verify);
-	    $ioloop  = Mojo::IOLoop->singleton;
-	    $verify = 0;
+            # Server options
+            my ($server,$port,$rendez,$prefix,@keyargs,$verify);
+            $ioloop  = Mojo::IOLoop->singleton;
+            $verify = 0;
 
-	    if ($proto eq "http/ws") {
-		$prefix = "http";
-	    } else {
-		$prefix = "https";
-		@keyargs = (
-		    ca     => $ca,
-		    key    => $s_key,
-		    cert   => $s_cert,
-		);
-		$verify = 1 if ($auth_mode eq "mutual");
-	    }
+            if ($proto eq "http/ws") {
+                $prefix = "http";
+            } else {
+                $prefix = "https";
+                @keyargs = (
+                    ca     => $ca,
+                    key    => $s_key,
+                    cert   => $s_cert,
+                );
+                $verify = 1 if ($auth_mode eq "mutual");
+            }
 
-	    if ($listen_mode eq "port") {
-		$port    = Mojo::IOLoop::Server->generate_port;
-		$rendez  = "$prefix://authserver.lan:$port",
-	    } else {
-		umask 077;	# make socket only accessible to us
-		unlink "/tmp/ida_daemon.sock" if -f "/tmp/ida_daemon.sock";
-		$rendez = "$prefix+unix://%2Ftmp%2Fida_daemon.sock";
-	    }
+            if ($listen_mode eq "port") {
+                $port    = Mojo::IOLoop::Server->generate_port;
+                $rendez  = "$prefix://authserver.lan:$port";
+            } else {
+                umask 077;      # make socket only accessible to us
+                unlink "/tmp/ida_daemon.sock" if -f "/tmp/ida_daemon.sock";
+                $rendez = "$prefix+unix://%2Ftmp%2Fida_daemon.sock";
+            }
 
-	    my $app_options = {
-		proto => $prefix,
-		auth_mode => $auth_mode,
-		auth_cns  => {	# ignored if not doing mutual auth
-		    "localhost.lan" => "yes"
-		},
-	    };
+            my $app_options = {
+                proto => $prefix,
+                auth_mode => $auth_mode,
+                auth_cns  => {  # ignored if not doing mutual auth
+                    "localhost.lan" => "yes"
+                },
+            };
 
-	    # Build server with generated options
-	    $server = build_server(
-		{
-		    listen => {
-			rendez => $rendez,
-			verify => $verify,
-			@keyargs,
-			
-		    },
-		    ioloop => $ioloop,
-		},
-		'App::IDA::Daemon', $app_options);
-		
-	    ok(ref($server), "Server opts $proto, $listen_mode, $auth_mode?");
+            # Build server with generated options
+            $server = build_server(
+                {
+                    listen => {
+                        rendez => $rendez,
+                        verify => $verify,
+                        @keyargs,
+                    },
+                    ioloop => $ioloop,
+                },
+                'App::IDA::Daemon', $app_options);
 
-	    # Do tests
+            ok(ref($server), "Server opts $proto, $listen_mode, $auth_mode?");
+            # $server->start;
 
-	    
-	}
+            # Do tests
+            #Mojo::IOLoop->start unless Mojo::IOLoop->is_running;
+
+            $t = Test::Mojo->new;
+            $ua = $t->ua(Mojo::UserAgent->new(
+                                ioloop => $ioloop,
+                                # always use a CA, regardless of whether
+                                # server is http/https
+                                ca     => $ca,
+                            )) or die;
+            #$t->get_ok("/");
+
+            #warn ref($ioloop);
+            my $munge = "$proto:$listen_mode:$auth_mode";
+            if ($proto eq "http/ws") {
+                my $ua = $t->ua(Mojo::UserAgent->new(
+                           ioloop => $ioloop,
+                           # always use a CA, regardless of whether
+                           # server is http/https
+                           ca     => $ca,
+                                )) or die;
+                #substr($rendez,0,6)='';
+                say "GET $rendez/";
+                $t->get_ok->("$rendez/")->status_is(200) or die;
+                my $wsrend = "$rendez/";
+                $wsrend =~ s/^http/ws/;
+                #$t->websocket_ok->("$rendez/sha")->status_is(101);
+            }
+        }
     }
 }
 
