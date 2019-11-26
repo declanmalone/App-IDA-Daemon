@@ -54,9 +54,9 @@ qui dolorem eum fugiat quo voluptas nulla pariatur?\n";
 
 mkdir "$Bin/silos" unless -d "$Bin/silos";
 
-# By default, perl interpreter lets you open a string
 my ($in, $is);
 if (0) {
+    # By default, perl interpreter lets you open a string
     unless (open $in, "<", \$lorem) {
 	warn "Your perl interpreter doesn't support opening a string\n";
 	plan skip_all => "Can't use required PerlIO feature";
