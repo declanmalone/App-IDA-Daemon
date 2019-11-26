@@ -82,7 +82,7 @@ unlink_if_exists("$Bin/silos/output");
 my $writer = $ut_class->new($is, "read", "error", "$Bin/silos/output");
 
 ok(!ref($writer), "Expect error if $ut_class not configured");
-warn "Return was $writer\n";
+#warn "Return was $writer\n";
 
 # Class should not have subscribed to $is events
 ok(!$is->has_subscribers("read"),  "No spurious read subs?");
