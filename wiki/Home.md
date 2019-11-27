@@ -17,3 +17,7 @@ github remote is called:
 
     git push github
 
+The upshot seems to be that as long as I do both pushes, the main
+repository will include both the code and the wiki if you clone from
+it. Enjoy?!
+
