@@ -109,14 +109,14 @@ The class implements a constructor and the C<read_p> method.
  my $source = App::IDA::Daemon::StringSourceP
     ->new($string);
 
-Creates a Source.
+Creates a streaming Source.
 
 =head2 read_p() method
 
- # Get a promise of new data
+ # Get a promise of some data from the stream
  my $promise = $source -> read_p( $port, $bytes );
 
- # Get data from the promise
+ # Extract data from the promise
  $promise -> then(sub {
    my ($data,$eof) = @_;
    ...
@@ -140,13 +140,15 @@ The arguments to C<read_p()> are:
 
 =item $port
 
-This should be set to 0 or undef. This argument is accepted by all
-Source and Filter classes, but only those classes that split a stream
-into multiple output streams allow this to be non-zero.
+This argument is accepted by all Source and Filter classes, but only
+those classes that split a stream into multiple output streams allow
+this to be non-zero. Since this class does not split the string, this
+argument should be set to 0 or left undefined.
 
 =item $bytes
 
-C<read_p()> returns a promise to return up to this number of bytes of
-the current string. Setting this to 0 will return the full string.
+C<read_p()> returns a promise to return I<up to> this number of bytes
+of the current string. Setting this to 0 or leaving it undefined will
+return the full string.
 
 =back
