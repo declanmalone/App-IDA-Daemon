@@ -56,13 +56,20 @@ ok($got_err, "Caught invalid port");
 $stream->read_p(0,-1)->catch( sub { $got_err = shift })->wait;
 ok($got_err, "Caught invalid bytes");
 
+# Test explicit wait
 $stream->read_p(0,1)->then( sub { ($got_data,$eof) = @_ })->wait;
-is($got_data, "M", "Taking 1 byte from 'My String'?");
+is($got_data, "M", "Taking 1 byte with wait()?");
+is($eof, 0, "Still no eof?");
+
+# Test starting event looop
+$stream->read_p(0,2)->then( sub { ($got_data,$eof) = @_ });
+Mojo::IOLoop->start;
+is($got_data, "y ", "Taking 2 bytes with IOLoop?");
 is($eof, 0, "Still no eof?");
 
 # Might be better splitting this out into explicit 0/undef tests
 $stream->read_p()->then( sub { ($got_data,$eof) = @_ })->wait;
-is($got_data, "y String", "Taking rest of bytes from 'My String'?");
+is($got_data, "String", "Taking rest of bytes from 'My String'?");
 is($eof, 1, "Got eof?");
 
 # Stream has ended, expect "", 1
@@ -102,7 +109,7 @@ sub read_p {
 	    # We're not getting any data here... why?
 	    die "ToUpper got data $data, eof: $eof\n";
 	    $data =~ y/a-z/A-Z/;
-	    $promise->resolve($data, $eof);
+	    Mojo::IOLoop->next_tick(sub {$promise->resolve($data, $eof)});
 	    #warn "got here\n";
 	},
 	sub {
@@ -139,6 +146,8 @@ my $from_finished = "";
 $sink->on(finished => sub {$from_finished = $_[0]});
 
 $sink->start;
+Mojo::IOLoop->start;
+Mojo::IOLoop->start;
 Mojo::IOLoop->start;
 	  
 is ($from_finished,  uc $lorem, "string source -> to_upper -> string sink?");

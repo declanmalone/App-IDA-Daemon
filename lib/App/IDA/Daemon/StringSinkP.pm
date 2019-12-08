@@ -71,10 +71,11 @@ sub _thunk {
 	    warn "StringSinkP::_thunk got data $data\n";
 	    ${$self->{strref}} .= $data;
 	    if ($eof) {
-		$self->{running} = 0;
+		# $self->{running} = 0;
 		$self->emit(finished => $self->to_string());
 	    } else {
-		# Apparently, this isn't enough to keep the event loop ticking?
+		# If we didn't get into the sub here, we can't keep
+		# the event loop live.
 		$self->{ioloop}->next_tick(sub { $self->_thunk });
 	    }
 	},

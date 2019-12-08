@@ -58,6 +58,7 @@ sub read_p {
 
     # Apparently the event loop finishes unless we queue this for later
     Mojo::IOLoop->next_tick(sub {$p->resolve($data, $eof)});
+
     $p;
 }
 
