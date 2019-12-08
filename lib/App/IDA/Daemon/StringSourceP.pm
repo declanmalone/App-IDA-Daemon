@@ -66,8 +66,8 @@ __END__
  my $stream = App::IDA::Daemon::StringSourceP
   ->new("My String");
 
- # read string 3 bytes at a time
- my ($output,$data,$eof) = ("","",0);
+ # stream the string 3 bytes at a time
+ my ($output, $data, $eof) = ("", "", 0);
  until ($eof) {
    $stream->read_p(0,3)->then(sub {
       ($data,$eof) = @_;
@@ -78,7 +78,7 @@ __END__
    })->wait;
  }
 
- die unless $output eq "My String";
+ die "'$output' ne 'My String'\n" if $output ne "My String";
 
 =head1 DESCRIPTION
 
@@ -100,3 +100,53 @@ will not actually run unless:
 
 =back
 
+=head1 METHODS
+
+The class implements a constructor and the C<read_p> method.
+
+=head2 Constructor
+
+ my $source = App::IDA::Daemon::StringSourceP
+    ->new($string);
+
+Creates a Source.
+
+=head2 read_p() method
+
+ # Get a promise of new data
+ my $promise = $source -> read_p( $port, $bytes );
+
+ # Get data from the promise
+ $promise -> then(sub {
+   my ($data,$eof) = @_;
+   ...
+ });
+ 
+ # Catch errors (ie, invalid read_p arguments)
+ $promise -> catch(sub {
+   my $err = shift;
+   ...
+ });
+ 
+ # then/catch callbacks don't get called until the promise is
+ # scheduled to run. Use one of:
+ $promise->wait;
+ Mojo::IOLoop->start;
+ Mojo::IOLoop->one_tick;
+
+The arguments to C<read_p()> are:
+
+=over
+
+=item $port
+
+This should be set to 0 or undef. This argument is accepted by all
+Source and Filter classes, but only those classes that split a stream
+into multiple output streams allow this to be non-zero.
+
+=item $bytes
+
+C<read_p()> returns a promise to return up to this number of bytes of
+the current string. Setting this to 0 will return the full string.
+
+=back

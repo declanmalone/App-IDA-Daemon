@@ -38,4 +38,4 @@ use Mojo::Promise;
    })->wait;
  }
 
-die "output '$output' ne 'My String'\n" unless $output eq "My String";
+die "'$output' ne 'My String'\n" if $output ne "My String";
