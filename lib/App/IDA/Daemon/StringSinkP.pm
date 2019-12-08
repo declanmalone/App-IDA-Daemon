@@ -17,11 +17,9 @@ sub new {
     die "Upstream undefined or can't read_p()\n" 
 	unless defined($upstream) and $upstream->can("read_p");
 
-    # I think that this gives us our own independent I/O loop that we
-    # could start/stop/one_tick/next_tick as we wish. I'm actually not
-    # going to rely on that functionality, though. Instead, look at
-    # how I define the start/stop methods below.
-    $ioloop //= Mojo::IOLoop->new;
+    # setting to Mojo::IOLoop->new wasn't working (start would have to
+    # explicitly start it instead of just setting running.
+    $ioloop //= "Mojo::IOLoop";
 
     # we can leave these as undef, but it's nicer to set them
     # explicitly in case upstream wants to use them in errors or
@@ -41,6 +39,7 @@ sub new {
 	bytes    => $bytes,
 	strref   => $strref,
 	running  => 0,
+	promise  => undef,
     }, $class;
 }
 
@@ -53,14 +52,18 @@ sub start {
 
 sub _thunk {
     my $self = shift;
-    return unless $self->{running};
 
-    # Mojo::Promise takes care of stashing the promise below
-    # so it doesn't get destroyed when it goes out of scope
+    warn "In thunk";
+    return unless $self->{running};
+    warn "We are running";    
+
+    $self->{promise} =
     $self->{upstream}->read_p($self->{port}, $self->{bytes})
 	->then(
 	sub {
 	    my ($data, $eof) = @_;
+	    # We're not getting any data here... why?
+	    warn "StringSinkP::_thunk got data $data\n";
 	    ${$self->{strref}} .= $data;
 	    if ($eof) {
 		$self->emit(finished => $self->to_string());
@@ -71,6 +74,7 @@ sub _thunk {
 	sub {
 	    $self->emit(error => $_[0]);
 	});
+    die unless ref($self->{promise});
 }
 
 sub to_string { ${$_[0]->{strref}} }
