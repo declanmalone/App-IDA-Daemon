@@ -107,13 +107,13 @@ sub read_p {
 	sub {
 	    my ($data, $eof) = @_;
 	    # We're not getting any data here... why?
-	    die "ToUpper got data $data, eof: $eof\n";
+	    warn "ToUpper got data $data, eof: $eof\n";
 	    $data =~ y/a-z/A-Z/;
 	    Mojo::IOLoop->next_tick(sub {$promise->resolve($data, $eof)});
 	    #warn "got here\n";
 	},
 	sub {
-	    die "ToUpper upstream rejected promise: $_[0]\n";
+	    warn "ToUpper upstream rejected promise: $_[0]\n";
 	    $promise->reject($_[0]);
 	})
 	->wait;
@@ -159,7 +159,7 @@ ok(ref($sink));
 
 # test getting transformed stream back via 'finished' event
 $from_finished = "";
-$sink->on(finished => sub {$from_finished = $_[0]});
+$sink->on(finished => sub {$from_finished = $_[1]});
 
 $sink->start;
 Mojo::IOLoop->start;
