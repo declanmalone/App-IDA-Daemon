@@ -29,7 +29,8 @@ sub new {
 
     # Make strref optional (caller can always get the value from the
     # finished event or by calling our to_string method after that)
-    $strref //= \""; 		# \"" ref_to_string;
+    my $lvalue = "";
+    $strref //= \$lvalue;
     die "ref(\$strref) ne 'SCALAR'\n" if "SCALAR" ne ref $strref;
 
     bless {
@@ -68,21 +69,26 @@ sub _thunk {
 	sub {
 	    my ($data, $eof) = @_;
 	    # Now I do get data if I connect StringSourceP -> StringSinkP ...
-	    warn "StringSinkP::_thunk got data $data\n";
+	    warn "StringSinkP::_thunk got data $data, eof $eof\n";
+	    warn "foo";
 	    ${$self->{strref}} .= $data;
+	    # bar never gets printed
+	    warn "bar";
+	    warn "StringSinkP::_thunk still alive\n";
 	    if ($eof) {
 		# $self->{running} = 0;
-		$self->emit(finished => $self->to_string());
+		warn "Emitting finished => '${$self->{strref}}'\n";
+		$self->emit(finished => ${$self->{strref}});
 	    } else {
 		# If we didn't get into the sub here, we can't keep
 		# the event loop live.
+		warn;
 		$self->{ioloop}->next_tick(sub { $self->_thunk });
 	    }
 	},
 	sub {
 	    $self->emit(error => $_[0]);
-	})
-	->wait;
+	})->wait;
     die unless ref($self->{promise});
 }
 

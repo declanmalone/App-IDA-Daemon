@@ -138,14 +138,14 @@ my $from_finished = "";
 $source = App::IDA::Daemon::StringSourceP->new("$lorem");
 $sink = App::IDA::Daemon::StringSinkP->new(undef,$source);
 ok(ref($sink));
-$sink->on(finished => sub {$from_finished = $_[0]});
+$sink->on(finished => sub {$from_finished = $_[1]});
 $sink->start;
 Mojo::IOLoop->start;
 
-is ($from_finished, $lorem, "string source -> string sink?");
-ok ($sink->to_string eq $lorem, "string source -> string sink?");
+is ($from_finished, $lorem, "finished: string source -> string sink?");
+ok ($sink->to_string eq $lorem, "to_string: string source -> string sink?");
 
-done_testing; exit;
+#done_testing; exit;
 
 # recreate source with longer data and use ToUpper
 
@@ -169,3 +169,4 @@ Mojo::IOLoop->start;
 is ($from_finished,  uc $lorem, "string source -> to_upper -> string sink?");
 ok ($sink->to_string eq uc $lorem, "string source -> to_upper -> string sink?");
 
+done_testing; exit;
