@@ -163,7 +163,7 @@ sub _greedily_process {
 	# the drain_promise to become fulfilled, but that shouldn't
 	# cause any problems when we get back to the top of this
 	# routine in the next tick
-	$self->_drain_port($port) foreach my $port (0.. $ports - 1);
+	map { $self->_drain_port($_) } (0 .. $ports - 1);
 	
 	     });
 }
