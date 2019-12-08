@@ -10,6 +10,7 @@ use Test::More;
 use Test::Mojo;
 
 use Mojo::Promise;
+use Mojo::IOLoop;
 
 # Does high-level functionality testing on promise-based processing
 # pipelines.
@@ -87,24 +88,28 @@ use warnings;
 sub new { bless { upstream => $_[1], buf => "" }, $_[0] }
 
 sub read_p {
-    my $self = shift;
-    my $port = shift;
-    my $bytes = shift || 4;
+    my ($self, $port, $bytes) = @_;
 
-    warn "in ToUpper::read_p\n";
+    warn "ToUpper::read_p($port, $bytes)\n";
+    $bytes = 10;
     my $promise = $self->{promise} = Mojo::Promise->new;
-    $self->{upstream}->read_p(0,$bytes)
-	->then(
+    $self->{upstream_promise} =
+	$self->{upstream}->read_p(0,$bytes);
+    $self->{upstream_promise}
+    ->then(
 	sub {
 	    my ($data, $eof) = @_;
+	    # We're not getting any data here... why?
 	    die "ToUpper got data $data, eof: $eof\n";
 	    $data =~ y/a-z/A-Z/;
 	    $promise->resolve($data, $eof);
 	    #warn "got here\n";
 	},
 	sub {
+	    die "ToUpper upstream rejected promise: $_[0]\n";
 	    $promise->reject($_[0]);
-	});
+	})
+	->wait;
     $promise;
 }
 1;
