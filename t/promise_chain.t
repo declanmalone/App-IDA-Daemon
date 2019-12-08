@@ -123,9 +123,7 @@ sub read_p {
 
 package main;
 
-# recreate source with longer data
-
-my $source;
+my ($source,$filter,$sink);
 my $lorem = "Lorem ipsum dolor sit amet, consectetur adipiscing elit,
 sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut
 enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi
@@ -133,6 +131,24 @@ ut aliquip ex ea commodo consequat. Duis aute irure dolor in
 reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla
 pariatur. Excepteur sint occaecat cupidatat non proident, sunt in
 culpa qui officia deserunt mollit anim id est laborum.\n";
+
+# Test String Source -> String Sink (no xform)
+
+my $from_finished = "";
+$source = App::IDA::Daemon::StringSourceP->new("$lorem");
+$sink = App::IDA::Daemon::StringSinkP->new(undef,$source);
+ok(ref($sink));
+$sink->on(finished => sub {$from_finished = $_[0]});
+$sink->start;
+Mojo::IOLoop->start;
+
+is ($from_finished, $lorem, "string source -> string sink?");
+ok ($sink->to_string eq $lorem, "string source -> string sink?");
+
+done_testing; exit;
+
+# recreate source with longer data and use ToUpper
+
 $source = App::IDA::Daemon::StringSourceP->new("$lorem");
 
 my $to_upper = ToUpper->new($source);
@@ -142,7 +158,7 @@ my $sink = App::IDA::Daemon::StringSinkP->new(undef,$to_upper);
 ok(ref($sink));
 
 # test getting transformed stream back via 'finished' event
-my $from_finished = "";
+$from_finished = "";
 $sink->on(finished => sub {$from_finished = $_[0]});
 
 $sink->start;
@@ -153,4 +169,3 @@ Mojo::IOLoop->start;
 is ($from_finished,  uc $lorem, "string source -> to_upper -> string sink?");
 ok ($sink->to_string eq uc $lorem, "string source -> to_upper -> string sink?");
 
-done_testing; exit;

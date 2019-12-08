@@ -67,7 +67,7 @@ sub _thunk {
     ->then(
 	sub {
 	    my ($data, $eof) = @_;
-	    # We're not getting any data here... why?
+	    # Now I do get data if I connect StringSourceP -> StringSinkP ...
 	    warn "StringSinkP::_thunk got data $data\n";
 	    ${$self->{strref}} .= $data;
 	    if ($eof) {
