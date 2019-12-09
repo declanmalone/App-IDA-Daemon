@@ -37,8 +37,6 @@ sub read_p {
     my ($self,$port,$bytes) = @_;
     my $p = Mojo::Promise->new;
 
-    warn "StringSourceP::read_p($port, $bytes)\n";
-    
     $port //= 0; $bytes //= 0;
     
     return $p->reject("port should be 0 or undef")   if  $port != 0;
@@ -53,13 +51,9 @@ sub read_p {
 
     my $eof = ($self->[0] eq "") ? 1 : 0;
 
-    # return resolved promise
-    warn "StringSourceP: returning resolved promise with $data, $eof\n";
-
-    # Apparently the event loop finishes unless we queue this for later
-    Mojo::IOLoop->next_tick(sub {$p->resolve($data, $eof)});
-
-    $p;
+    # return resolved promise (no need to next_tick it)
+    # Mojo::IOLoop->next_tick(sub {$p->resolve($data, $eof)}); $p;
+    $p->resolve($data, $eof);
 }
 
 1;

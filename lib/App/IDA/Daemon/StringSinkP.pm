@@ -69,7 +69,6 @@ sub _thunk {
 	sub {
 	    $self->emit(error => $_[0]);
 	});
-    die unless ref($self->{promise});
 }
 
 sub to_string { ${$_[0]->{strref}} }

@@ -146,7 +146,7 @@ $source = App::IDA::Daemon::StringSourceP->new("$lorem");
 my $to_upper = ToUpper->new($source);
 
 # leave most of the parameters undefined
-my $sink = App::IDA::Daemon::StringSinkP->new(undef,$to_upper);
+$sink = App::IDA::Daemon::StringSinkP->new(undef,$to_upper);
 ok(ref($sink));
 
 # test getting transformed stream back via 'finished' event
