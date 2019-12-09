@@ -97,26 +97,20 @@ sub new { bless { upstream => $_[1], buf => "" }, $_[0] }
 sub read_p {
     my ($self, $port, $bytes) = @_;
 
-    warn "ToUpper::read_p($port, $bytes)\n";
+    # fudge $bytes because downstream will pass us 0 and I'd prefer to
+    # test finite chunk size instead of getting everything in a single
+    # read_p.
     $bytes = 10;
-    my $promise = $self->{promise} = Mojo::Promise->new;
-    # $self->{upstream_promise} =
-    $self->{upstream}->read_p(0,$bytes)
-    # ; $self->{upstream_promise}
-    ->then(
+    my $promise = Mojo::Promise->new;
+    $self->{upstream}->read_p(0,$bytes)->then(
 	sub {
 	    my ($data, $eof) = @_;
-	    # We're not getting any data here... why?
-	    warn "ToUpper got data $data, eof: $eof\n";
 	    $data =~ y/a-z/A-Z/;
-	    Mojo::IOLoop->next_tick(sub {$promise->resolve($data, $eof)});
-	    #warn "got here\n";
+	    $promise->resolve($data, $eof);
 	},
 	sub {
-	    warn "ToUpper upstream rejected promise: $_[0]\n";
 	    $promise->reject($_[0]);
 	});
-	# ->wait;
     $promise;
 }
 1;
@@ -132,7 +126,7 @@ reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla
 pariatur. Excepteur sint occaecat cupidatat non proident, sunt in
 culpa qui officia deserunt mollit anim id est laborum.\n";
 
-# Test String Source -> String Sink (no xform)
+# Test String Source -> String Sink (no transforming filter)
 
 my $from_finished = "";
 $source = App::IDA::Daemon::StringSourceP->new("$lorem");
@@ -144,8 +138,6 @@ Mojo::IOLoop->start;
 
 is ($from_finished, $lorem, "finished: string source -> string sink?");
 ok ($sink->to_string eq $lorem, "to_string: string source -> string sink?");
-
-#done_testing; exit;
 
 # recreate source with longer data and use ToUpper
 

@@ -29,7 +29,7 @@ sub new {
 
     # Make strref optional (caller can always get the value from the
     # finished event or by calling our to_string method after that)
-    my $lvalue = "";
+    my $lvalue = "";		# must be an lvalue (\"" won't work)
     $strref //= \$lvalue;
     die "ref(\$strref) ne 'SCALAR'\n" if "SCALAR" ne ref $strref;
 
@@ -54,41 +54,21 @@ sub start {
 sub _thunk {
     my $self = shift;
 
-    warn "In thunk\n";
     return unless $self->{running};
-    warn "We are running\n";
     
-    # $self->{ioloop}->next_tick(sub { $self->_thunk });
-
-    # we shouldn't need to stash the promise, but just to be sure
-    # $self->{promise} =
-    $self->{upstream}->read_p($self->{port}, $self->{bytes})
-	
-    # ; $self->{promise}
-    ->then(
+    $self->{upstream}->read_p($self->{port}, $self->{bytes})->then(
 	sub {
 	    my ($data, $eof) = @_;
-	    # Now I do get data if I connect StringSourceP -> StringSinkP ...
-	    warn "StringSinkP::_thunk got data $data, eof $eof\n";
-	    warn "foo";
 	    ${$self->{strref}} .= $data;
-	    # bar never gets printed
-	    warn "bar";
-	    warn "StringSinkP::_thunk still alive\n";
 	    if ($eof) {
-		# $self->{running} = 0;
-		warn "Emitting finished => '${$self->{strref}}'\n";
 		$self->emit(finished => ${$self->{strref}});
 	    } else {
-		# If we didn't get into the sub here, we can't keep
-		# the event loop live.
-		warn;
 		$self->{ioloop}->next_tick(sub { $self->_thunk });
 	    }
 	},
 	sub {
 	    $self->emit(error => $_[0]);
-	}); # ->wait;
+	});
     die unless ref($self->{promise});
 }
 
