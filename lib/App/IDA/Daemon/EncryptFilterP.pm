@@ -74,17 +74,40 @@ sub _old {
 
 sub read_p {
     my ($self,$port,$bytes) = @_;
-    my $p = Mojo::Promise->new;
 
+    my $p = Mojo::Promise->new;
     $port //= 0; $bytes //= 0;
     
     return $p->reject("port should be 0 or undef")   if  $port != 0;
     return $p->reject("bytes should be >=0 or undef") if !($bytes >= 0);
 
+    # We need to prepend IV to the stream, but we also want to ensure
+    # that we never return more than the requested number of $bytes
+    my $iv = $self->{iv};
+    my $iv_bytes = "";
+    if (length($iv)) {
+	if ($bytes) {
+	    # try to splice out *up to* bytes from IV
+	    $iv_bytes = substr($self->{iv}, 0, $bytes, "");
+	    # and decrement by the number of bytes *actually* spliced
+	    $bytes -= length($iv_bytes);
+	    # assert($bytes >= 0);
+	    return $p->resolve($iv_bytes, 0) unless $bytes
+	} else {
+	    $iv_bytes = $iv;
+	}
+    }
+
     $self->{upstream}->read_p($self->{port}, $bytes)
 	->then(
-	sub { },
-	sub { },
+	sub {
+	    my ($indata,$eof) = @_;
+	    my $outdata = $iv_bytes . $enc->add($indata);
+	    $p->resolve($outdata . ($eof ? $enc->finish : ""), $eof);	    
+	},
+	sub {
+	    $p->reject($_[0]);
+	},
     );
     $p;
 }
