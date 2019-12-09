@@ -24,6 +24,30 @@ use Mojo::IOLoop;
 
 use_ok("App::IDA::Daemon::StringSourceP");
 
+my $lorem = "Lorem ipsum dolor sit amet, consectetur adipiscing elit,
+sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut
+enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi
+ut aliquip ex ea commodo consequat. Duis aute irure dolor in
+reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla
+pariatur. Excepteur sint occaecat cupidatat non proident, sunt in
+culpa qui officia deserunt mollit anim id est laborum.\n";
+
+my $sed = "Sed ut perspiciatis unde omnis iste natus error sit
+voluptatem accusantium doloremque laudantium, totam rem aperiam, eaque
+ipsa quae ab illo inventore veritatis et quasi architecto beatae vitae
+dicta sunt explicabo. Nemo enim ipsam voluptatem quia voluptas sit
+aspernatur aut odit aut fugit, sed quia consequuntur magni dolores eos
+qui ratione voluptatem sequi nesciunt. Neque porro quisquam est, qui
+dolorem ipsum quia dolor sit amet, consectetur, adipisci velit, sed
+quia non numquam eius modi tempora incidunt ut labore et dolore magnam
+aliquam quaerat voluptatem. Ut enim ad minima veniam, quis nostrum
+exercitationem ullam corporis suscipit laboriosam, nisi ut aliquid ex
+ea commodi consequatur? Quis autem vel eum iure reprehenderit qui in
+ea voluptate velit esse quam nihil molestiae consequatur, vel illum
+qui dolorem eum fugiat quo voluptas nulla pariatur?\n";
+
+
+
 my $stream = App::IDA::Daemon::StringSourceP
     ->new("My String");
 
@@ -118,19 +142,12 @@ sub read_p {
 package main;
 
 my ($source,$filter,$sink);
-my $lorem = "Lorem ipsum dolor sit amet, consectetur adipiscing elit,
-sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut
-enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi
-ut aliquip ex ea commodo consequat. Duis aute irure dolor in
-reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla
-pariatur. Excepteur sint occaecat cupidatat non proident, sunt in
-culpa qui officia deserunt mollit anim id est laborum.\n";
 
 # Test String Source -> String Sink (no transforming filter)
 
 my $from_finished = "";
 $source = App::IDA::Daemon::StringSourceP->new("$lorem");
-$sink = App::IDA::Daemon::StringSinkP->new(undef,$source);
+$sink = App::IDA::Daemon::StringSinkP->new($source);
 ok(ref($sink));
 $sink->on(finished => sub {$from_finished = $_[1]});
 $sink->start;
@@ -139,14 +156,14 @@ Mojo::IOLoop->start;
 is ($from_finished, $lorem, "finished: string source -> string sink?");
 ok ($sink->to_string eq $lorem, "to_string: string source -> string sink?");
 
-# recreate source with longer data and use ToUpper
+# recreate source with longer data and use ToUpper module
 
 $source = App::IDA::Daemon::StringSourceP->new("$lorem");
 
 my $to_upper = ToUpper->new($source);
 
 # leave most of the parameters undefined
-$sink = App::IDA::Daemon::StringSinkP->new(undef,$to_upper);
+$sink = App::IDA::Daemon::StringSinkP->new($to_upper);
 ok(ref($sink));
 
 # test getting transformed stream back via 'finished' event
@@ -155,10 +172,73 @@ $sink->on(finished => sub {$from_finished = $_[1]});
 
 $sink->start;
 Mojo::IOLoop->start;
-Mojo::IOLoop->start;
-Mojo::IOLoop->start;
 	  
 is ($from_finished,  uc $lorem, "string source -> to_upper -> string sink?");
 ok ($sink->to_string eq uc $lorem, "string source -> to_upper -> string sink?");
+
+# Encrypt/Decrypt (tests ported from aes.t)
+use_ok("App::IDA::Daemon::EncryptFilterP");
+use_ok("App::IDA::Daemon::DecryptFilterP");
+
+# and tap into the middle
+use_ok("App::IDA::Daemon::TapFilterP");
+
+my $message = $lorem;
+my $key = "0123456789abcdef";   # 128-bit key (16 bytes) 
+
+# warn "message is of size " . length($message) . "\n";
+#
+# The message is 446 bytes, so it's not an even multiple of 16 (the
+# AES block size). If it /was/ a multiple of the block size, I would
+# probably want to do another test to make sure that the algorithm
+# handled partial blocks at the end of the message properly.
+#
+# As it is, though, since the message /does/ have a partial block at
+# the end, I won't test the case where the message is a multiple of
+# the AES block size.
+# 
+
+# set up our processing chain: string -> enc -> dec -> string
+
+# Try out sending a byte at a time, since this may cause problems with
+# the encryption/decryption routines themselves, since they work on
+# blocks of data.
+
+my $chunk_size = 1;
+
+my $source = App::IDA::Daemon::StringSourceP->new($message);
+
+my $enc = App::IDA::Daemon::EncryptFilterP->new($source, $key);
+
+ok (ref($enc), "new Encoder?");
+# insert a tap that copies the data stream between enc/dec
+my $tapped = '';
+my $tap = App::IDA::Daemon::TapFilterP
+    ->new($enc,
+          sub {
+              my $data = $_[1];
+              $tapped .= $data;
+              $_[0]->emit("read" => $data);
+          });
+
+# and wire decoder to be downstream of the tap
+my $dec = App::IDA::Daemon::DecryptFilterP
+    ->new($tap, $key);
+
+ok (ref($dec), "new Decoder?");
+
+my $output = "";
+
+my $sink = App::IDA::Daemon::StringSinkP
+    ->new($dec, 0, 0, \$output);
+ok (ref($sink), "new Sink?");
+
+# We don't actually have subscribe to close events here
+$source->start;
+Mojo::IOLoop->start;
+
+is ($output, $message, "Input/Output messages match?");
+isnt ($message, $tapped, "Encoder actually transformed data?");
+
 
 done_testing; exit;
