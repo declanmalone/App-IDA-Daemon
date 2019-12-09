@@ -12,14 +12,16 @@ use v5.10;
 # A simple string sink to go at the end of a processing pipeline
 
 sub new {
-    my ($class, $ioloop, $upstream, $port, $bytes, $strref) = @_;
+    my ($class, $upstream, $port, $bytes, $strref) = @_;
 
     die "Upstream undefined or can't read_p()\n" 
 	unless defined($upstream) and $upstream->can("read_p");
 
-    # setting to Mojo::IOLoop->new wasn't working (start would have to
-    # explicitly start it instead of just setting running.
-    $ioloop //= "Mojo::IOLoop";
+    # There's no point in passing in $ioloop parameter since this
+    # routine won't work properly if we're passed in a Mojo::IOLoop
+    # *object* as opposed to the class name.
+    #
+    # $ioloop //= "Mojo::IOLoop";
 
     # we can leave these as undef, but it's nicer to set them
     # explicitly in case upstream wants to use them in errors or
@@ -34,7 +36,7 @@ sub new {
     die "ref(\$strref) ne 'SCALAR'\n" if "SCALAR" ne ref $strref;
 
     bless {
-	ioloop   => $ioloop,
+#	ioloop   => $ioloop,
 	upstream => $upstream,
 	port     => $port,
 	bytes    => $bytes,
@@ -48,7 +50,7 @@ sub stop { $_[0]->{running} = 0 }
 sub start {
     my $self = shift;
     return if $self->{running}++;
-    $self->{ioloop}->next_tick(sub { $self->_thunk });
+    Mojo::IOLoop->next_tick(sub { $self->_thunk });
 }
 
 sub _thunk {
@@ -63,7 +65,7 @@ sub _thunk {
 	    if ($eof) {
 		$self->emit(finished => ${$self->{strref}});
 	    } else {
-		$self->{ioloop}->next_tick(sub { $self->_thunk });
+		Mojo::IOLoop->next_tick(sub { $self->_thunk });
 	    }
 	},
 	sub {
