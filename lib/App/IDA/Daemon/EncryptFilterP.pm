@@ -19,7 +19,7 @@ use Crypt::Mode::CBC;
 use Crypt::PRNG::RC4 qw(random_bytes);
 
 sub new {
-    my ($class, $upstream, $key) = @_;
+    my ($class, $upstream, $port, $key) = @_;
 
     die "Upstream undefined or can't read_p\n"
 	unless defined $upstream and $upstream->can("read_p");
@@ -27,10 +27,10 @@ sub new {
     # create a random initialisation vector
     my $iv = random_bytes(16);	# AES iv size
     my $self = bless {
-	source => $source,
-	read   => $read,
-	close  => $close,
-	iv     => $iv,
+	upstream => $source,
+	port     => $read,
+	key      => $key,
+	iv       => $iv,
     }, $class;
 
     # Set up the encryptor in CBC mode
@@ -79,9 +79,14 @@ sub read_p {
     $port //= 0; $bytes //= 0;
     
     return $p->reject("port should be 0 or undef")   if  $port != 0;
-    return $p->reject("bytes should be >0 or undef") if !($bytes >= 0);
+    return $p->reject("bytes should be >=0 or undef") if !($bytes >= 0);
 
-    
+    $self->{upstream}->read_p($self->{port}, $bytes)
+	->then(
+	sub { },
+	sub { },
+    );
+    $p;
 }
 
 1;
