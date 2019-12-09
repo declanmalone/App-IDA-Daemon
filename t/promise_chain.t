@@ -100,9 +100,9 @@ sub read_p {
     warn "ToUpper::read_p($port, $bytes)\n";
     $bytes = 10;
     my $promise = $self->{promise} = Mojo::Promise->new;
-    $self->{upstream_promise} =
-	$self->{upstream}->read_p(0,$bytes);
-    $self->{upstream_promise}
+    # $self->{upstream_promise} =
+    $self->{upstream}->read_p(0,$bytes)
+    # ; $self->{upstream_promise}
     ->then(
 	sub {
 	    my ($data, $eof) = @_;

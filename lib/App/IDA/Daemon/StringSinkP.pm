@@ -61,10 +61,10 @@ sub _thunk {
     # $self->{ioloop}->next_tick(sub { $self->_thunk });
 
     # we shouldn't need to stash the promise, but just to be sure
-    $self->{promise} =
-	$self->{upstream}->read_p($self->{port}, $self->{bytes});
-
-    $self->{promise}
+    # $self->{promise} =
+    $self->{upstream}->read_p($self->{port}, $self->{bytes})
+	
+    # ; $self->{promise}
     ->then(
 	sub {
 	    my ($data, $eof) = @_;
