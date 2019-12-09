@@ -88,7 +88,7 @@ sub _thunk {
 	},
 	sub {
 	    $self->emit(error => $_[0]);
-	})->wait;
+	}); # ->wait;
     die unless ref($self->{promise});
 }
 

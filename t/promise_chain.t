@@ -115,8 +115,8 @@ sub read_p {
 	sub {
 	    warn "ToUpper upstream rejected promise: $_[0]\n";
 	    $promise->reject($_[0]);
-	})
-	->wait;
+	});
+	# ->wait;
     $promise;
 }
 1;
