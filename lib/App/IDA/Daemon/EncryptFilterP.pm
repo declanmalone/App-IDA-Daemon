@@ -44,33 +44,7 @@ sub new {
     $self;
 }
 
-sub _old {
-    my $self = shift;
-    # The IV will be passed unencrypted at the start of the data
-    # stream. We can't emit anything right now, though (since there
-    # can't be any subscribers), so we'll have to arrange to pass it
-    # during a regular emit chain.
-    $source->on($read => 
-		sub {
-		    my $indata = $_[1];
-		    my $outdata = $enc->add($indata);
-		    if (defined $iv) {
-			$outdata = $iv . $outdata;
-			$iv = undef;
-		    }
-		    $self->emit(read => $outdata);
-		});
-    unless (defined $close) {
-	# On eof, we need to finish the encryption
-	warn "EncryptFilter must subscribe to a close event\n";
-	return undef;
-    };
-    $source->on($close =>
-		sub {
-		    $self->emit(read => $enc->finish);
-		    $self->emit("close")
-		});
-}
+sub has_port { $_[1] == 0 }
 
 sub read_p {
     my ($self,$port,$bytes) = @_;
@@ -97,6 +71,18 @@ sub read_p {
 	    $iv_bytes = $iv;
 	}
     }
+
+    # The code below also needs to be modified to account for the case
+    # where we get an upstream eof, call $enc->finish, but then find
+    # that the combined length of the data is more than $bytes.
+
+    # There must be a clean way of managing our internal buffer in a
+    # way that lets us handle both prepending data to the stream (IV,
+    # above) and appending to the end (data from finish, below)
+    # without needing duplicate code to make sure we never return more
+    # than $bytes. Possibly using a "flushing" or "shutting down" flag
+    # that overrides doing upstream read_p and correctly handling our
+    # eof return.
 
     $self->{upstream}->read_p($self->{port}, $bytes)
 	->then(
