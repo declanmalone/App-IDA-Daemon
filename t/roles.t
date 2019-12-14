@@ -110,8 +110,20 @@ $new_class = App::IDA::Daemon::Link
 # warn $new_class; # we get back a class name, not a ref!
 ok (defined $new_class, "Apply role using with_roles");
 
-my $obj = $new_class->new;
-ok (ref $obj, "Composed class returned an object");
+# Change test of new() to expect splat (missing upstream_* args)
+
+my $obj;
+eval {
+    $obj = $new_class->new;
+};
+ok ($@, "Expected splat: $@");
+
+# Can't test setting upstream_object/upstream_port yet (don't have a
+# valid upstream_object yet...)
+
+# Expect OK if we include required args
+#$obj = $new_class->new( upstream_object
+#ok (ref $obj, "Composed class returned an object");
 
 # another way of composing uses Mojo::Base->with_roles
 
@@ -125,17 +137,57 @@ eval {
  $bad_class = BarWithout->
 	with_roles("App::IDA::Daemon::Link::Role::Filter");
 };
-
-# warn $bad_class;
-# warn $@;
 ok ($@, "Expected splat: $@");
 
-if (0) {
-    my $bad_obj = $bad_class->new();
-    ok (ref $bad_obj, "Called bad class constructor");
-}
+# Move on to testing functionality
+#
+# Make StringSource and StringSink classes that do Source, Sink
+# roles.
+#
+# Chain them together (making sure that constructors work) and then do
+# functionality tests.
+#
+# The code will be based on promise_chain.pl in my mojo-experiments
+# repo, so the main changes will be in terms of object/role
+# decomposition and parameter checking.
+#
+
+# Test pre-composed classes
+use_ok("App::IDA::Daemon::Link::StringSource");
+
+# StringSource needs source_buffer
+eval { $obj = App::IDA::Daemon::Link::StringSource -> new() };
+
+ok ($@, "Expect splat if no source_buffer arg: $@");
+
+# Give constructor a source_buffer argument
+$obj = App::IDA::Daemon::Link::StringSource
+    ->new(source_buffer => "This is some buffer text");
+
+ok(ref($obj), "StringSource->new with source_buffer OK?");
+
+# test its read_p functionality with a number of bytes
+my $got = "";
+my $eof = 0;
+my $p = $obj->read_p(0, 7);
+
+is (ref($p), "Mojo::Promise", "read_p returns a Mojo::Promise?");
+
+# wait for promise to be resolved
+$p->then(sub { ($got, $eof) = @_ })->wait;
+is ($got, "This is", "read_p 7 bytes gets 'This is'?");
+is ($eof, 0, "String at eof already?!");
+
+# If we set bytes to 0, we should get the rest of the string
+my $p = $obj->read_p(0, 0);
+$p->then(sub { ($got, $eof) = @_ })->wait;
+is ($got, " some buffer text", "read_p 0 bytes gets remaining text?");
+ok ($eof, "eof as expected?");
+
 
 done_testing; exit;
+
+use_ok("App::IDA::Daemon::Link::StringSink");
 
 
 # I will use this set of tests to figure out how best to refactor

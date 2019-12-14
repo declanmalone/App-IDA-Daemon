@@ -23,8 +23,12 @@ sub new {
     my $self = bless { }, $class;
     my $errors = [];
     $self->BUILDARGS( {@_}, $errors);
-    foreach my $err (@$errors) {
-	warn "$err\n";
+    if (@$errors) {
+	warn "Link: there were some problems with arguments\n";
+	foreach my $err (@$errors) {
+	    warn "$err\n";
+	}
+	die "Link: quitting\n";
     }
     $self;
 };
