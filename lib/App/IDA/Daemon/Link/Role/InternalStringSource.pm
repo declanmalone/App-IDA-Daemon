@@ -12,14 +12,14 @@ has qw(source_buffer);
 # declarations, and the overall intent of the code is easy to see.
 around BUILDARGS => sub {
     my ($orig, $self, $args, $errors) = @_;
-    warn "In InternalStringSource's BUILDARGS\n";
-    warn "orig is a " . ref($orig) . "\n";
-    warn "self is a " . ref($self) . "\n";
-    warn "args is a " . ref($args) . "\n";
-    warn "errors is a " . ref($errors) . "\n";
+    # warn "In InternalStringSource's BUILDARGS\n";
+    # warn "orig is a " . ref($orig) . "\n";
+    # warn "self is a " . ref($self) . "\n";
+    # warn "args is a " . ref($args) . "\n";
+    # warn "errors is a " . ref($errors) . "\n";
 
     if (defined $args->{source_buffer}) {
-	warn "source_buffer is defined!\n";
+	# warn "source_buffer is defined!\n";
 	$self->{source_buffer} = $args->{source_buffer};
     } else {
 	push @$errors,

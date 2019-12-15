@@ -176,6 +176,13 @@ Mojo::IOLoop->start;
 is ($from_finished,  uc $lorem, "string source -> to_upper -> string sink?");
 ok ($sink->to_string eq uc $lorem, "string source -> to_upper -> string sink?");
 
+
+# I haven't actually ported TapFilterP, EncryptFilterP or
+# DecryptFilterP yet (and may not do so, or I may use different names)
+# so I'll just finish testing here for now.
+
+done_testing; exit;
+
 # Encrypt/Decrypt (tests ported from aes.t)
 use_ok("App::IDA::Daemon::EncryptFilterP");
 use_ok("App::IDA::Daemon::DecryptFilterP");
@@ -206,7 +213,7 @@ my $key = "0123456789abcdef";   # 128-bit key (16 bytes)
 
 my $chunk_size = 1;
 
-my $source = App::IDA::Daemon::StringSourceP->new($message);
+$source = App::IDA::Daemon::StringSourceP->new($message);
 
 my $enc = App::IDA::Daemon::EncryptFilterP->new($source, $key);
 
@@ -227,9 +234,9 @@ my $dec = App::IDA::Daemon::DecryptFilterP
 
 ok (ref($dec), "new Decoder?");
 
-my $output = "";
+$output = "";
 
-my $sink = App::IDA::Daemon::StringSinkP
+$sink = App::IDA::Daemon::StringSinkP
     ->new($dec, 0, 0, \$output);
 ok (ref($sink), "new Sink?");
 

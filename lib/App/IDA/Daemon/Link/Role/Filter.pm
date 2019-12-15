@@ -48,10 +48,10 @@ has 'upstream_port';
 around BUILDARGS => sub {
     # would check parameters here, putting OK ones into self
     my ($orig, $self,$args, $errors) = @_;
-    warn "orig is a " . ref($orig) . "\n";
-    warn "self is a " . ref($self) . "\n";
-    warn "args is a " . ref($args) . "\n";
-    warn "errors is a " . ref($errors) . "\n";
+    # warn "orig is a " . ref($orig) . "\n";
+    # warn "self is a " . ref($self) . "\n";
+    # warn "args is a " . ref($args) . "\n";
+    # warn "errors is a " . ref($errors) . "\n";
     if (ref($args->{upstream_object}) and
 	$args->{upstream_object}->can("read_p") and
 	$args->{upstream_object}->has_read_port($args->{upstream_port})) {

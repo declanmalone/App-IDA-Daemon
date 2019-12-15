@@ -101,7 +101,7 @@ eval {
     $new_class = App::IDA::Daemon::Link
 	->with_roles("+Filter");
 };
-ok ($@, "Expected splat: $@");
+ok ($@, "Expected splat: no filter_process");
 
 # ConcreteRole is a Role that provides an implementation of it
 $new_class = App::IDA::Daemon::Link
@@ -116,7 +116,7 @@ my $obj;
 eval {
     $obj = $new_class->new;
 };
-ok ($@, "Expected splat: $@");
+ok ($@, "Expected splat: no upstream_*");
 
 # Can't test setting upstream_object/upstream_port yet (don't have a
 # valid upstream_object yet...)
@@ -137,7 +137,7 @@ eval {
  $bad_class = BarWithout->
 	with_roles("App::IDA::Daemon::Link::Role::Filter");
 };
-ok ($@, "Expected splat: $@");
+ok ($@, "Expected splat: no filter_process");
 
 # Move on to testing functionality
 #
@@ -158,7 +158,7 @@ use_ok("App::IDA::Daemon::Link::StringSource");
 # StringSource needs source_buffer
 eval { $obj = App::IDA::Daemon::Link::StringSource -> new() };
 
-ok ($@, "Expect splat if no source_buffer arg: $@");
+ok ($@, "Expect splat if no source_buffer arg");
 
 # Give constructor a source_buffer argument
 $obj = App::IDA::Daemon::Link::StringSource
@@ -192,7 +192,7 @@ $obj = App::IDA::Daemon::Link::StringSource
 eval {
     $p = $obj->read_p(1, 0);
 };
-ok ($@, "Expected splat: $@");
+ok ($@, "Expected splat: invalid port");
 
 # test reading more than available bytes
 $p = $obj->read_p(0, 10_000);
