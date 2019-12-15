@@ -10,11 +10,6 @@ t/00-load.t
 t/manifest.t
 t/pod-coverage.t
 t/pod.t
-App-IDA-Daemon/lib/App/IDA/Daemon.pm
-App-IDA-Daemon/t/00-load.t
-App-IDA-Daemon/t/manifest.t
-App-IDA-Daemon/t/pod-coverage.t
-App-IDA-Daemon/t/pod.t
 certs/build/authserver.lan.conf
 certs/build/authserver.lan/csr.pem
 certs/build/authserver.lan/private_key.pem
@@ -50,7 +45,6 @@ certs/test/server_cert.pem
 certs/test/server_key.pem
 deploy/post-receive
 ida-daemon.conf
-ignore.txt
 lib/App/IDA/Daemon/Chainable.pm
 lib/App/IDA/Daemon/Chainable/Role/Buffered.pm
 lib/App/IDA/Daemon/Chainable/Role/Director.pm
