@@ -1,0 +1,57 @@
+# App-IDA-Daemon
+
+A Mojolicious-based daemon that provides a low-level set of features
+for implementing distributed (network-based) redundant storage systems
+based on Michael O. Rabin's Information Dispersal Algorithm.
+
+This README only contains minimal information: just enough for a quick
+overview for someone browsing CPAN. For more detailed information, see:
+
+* The included README.md file
+
+* The App::IDA::Daemon documentation
+
+* The package's [github page]
+
+* The author's [other github repositories] for dependencies
+  (particularly Crypt::IDA) and related bits of code.
+
+[github page]: https://github.com/declanmalone/App-IDA-Daemon
+[other github repositories]: https://github.com/declanmalone
+
+## INSTALLATION
+
+To install this module, run the following commands:
+
+	perl Build.PL
+	./Build
+	./Build test
+	./Build install
+
+## SUPPORT AND DOCUMENTATION
+
+After installing, you can find documentation for this module with the
+perldoc command.
+
+    perldoc App::IDA::Daemon
+
+You can also look for information at:
+
+    RT, CPAN's request tracker (report bugs here)
+        http://rt.cpan.org/NoAuth/Bugs.html?Dist=App-IDA-Daemon
+
+    AnnoCPAN, Annotated CPAN documentation
+        http://annocpan.org/dist/App-IDA-Daemon
+
+    CPAN Ratings
+        http://cpanratings.perl.org/d/App-IDA-Daemon
+
+    Search CPAN
+        http://search.cpan.org/dist/App-IDA-Daemon/
+
+## LICENSE AND COPYRIGHT
+
+Copyright (C) 2019 Declan Malone
+
+This program is released under the following license: perl,lgpl,artistic2
+
