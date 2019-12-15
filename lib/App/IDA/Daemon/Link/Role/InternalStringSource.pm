@@ -31,7 +31,7 @@ around BUILDARGS => sub {
 
 sub read_from_internal {
     my ($self, $bytes) = @_;
-    my ($data, $eof, $avail);
+    my ($avail, $data, $eof);
 
     $avail = length $self->{source_buffer};
     $bytes = $avail if $avail < $bytes or $bytes == 0;
