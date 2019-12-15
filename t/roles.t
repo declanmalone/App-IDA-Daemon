@@ -96,6 +96,8 @@ package main;
 
 my $new_class;
 
+diag "Some error messages from Link are expected below";
+
 # Filter adds an unsatisfied requirement to define filter_process()
 eval {
     $new_class = App::IDA::Daemon::Link
