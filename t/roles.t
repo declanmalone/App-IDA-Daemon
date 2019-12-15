@@ -152,7 +152,7 @@ ok ($@, "Expected splat: $@");
 # decomposition and parameter checking.
 #
 
-# Test pre-composed classes
+### Unit test Link::StringSource (pre-composed class)
 use_ok("App::IDA::Daemon::Link::StringSource");
 
 # StringSource needs source_buffer
@@ -179,15 +179,34 @@ is ($got, "This is", "read_p 7 bytes gets 'This is'?");
 is ($eof, 0, "String at eof already?!");
 
 # If we set bytes to 0, we should get the rest of the string
-my $p = $obj->read_p(0, 0);
+$p = $obj->read_p(0, 0);
 $p->then(sub { ($got, $eof) = @_ })->wait;
 is ($got, " some buffer text", "read_p 0 bytes gets remaining text?");
 ok ($eof, "eof as expected?");
 
+$obj = App::IDA::Daemon::Link::StringSource
+    ->new(source_buffer => "Short text");
+
+# test reading from invalid port
+# This should die, since it's a programming error
+eval {
+    $p = $obj->read_p(1, 0);
+};
+ok ($@, "Expected splat: $@");
+
+# test reading more than available bytes
+$p = $obj->read_p(0, 10_000);
+$p->then(sub { ($got, $eof) = @_ })->wait;
+is ($got, "Short text", "read_p > avail bytes gets all text?");
+ok ($eof, "eof as expected?");
+
+
+### Unit Test Link::StringSink (pre-composed class)
+#use_ok("App::IDA::Daemon::Link::StringSink");
+
+
 
 done_testing; exit;
-
-use_ok("App::IDA::Daemon::Link::StringSink");
 
 
 # I will use this set of tests to figure out how best to refactor

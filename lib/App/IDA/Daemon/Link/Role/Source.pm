@@ -1,6 +1,6 @@
 package App::IDA::Daemon::Link::Role::Source;
 
-# Filter trait
+# Source trait
 use Mojo::Base -role;
 
 # Some other role must supply the concrete method below:
@@ -19,6 +19,12 @@ has qw(eof);
 sub read_p {
     my ($self, $port, $bytes) = @_;
 
+    # I'm half inclined not to include this check, but it is a
+    # separate class of error from getting the port wrong in the
+    # constructor, so I'll leave it in.
+    die "Role::Source: we have no port '$port'\n" 
+	unless $self->has_read_port($port);
+    
     # To make this work whether we're using a string or a Mojo Stream,
     # we should really pass the promise into read_from_internal().
     # That way, if there's an I/O error on the stream we can catch the
