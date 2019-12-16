@@ -31,6 +31,21 @@ with 'App::IDA::Daemon::Link::Role::PullsFromUpstream';
 # # use App::IDA::Daemon::Link::Role::PullsFromUpstream;
 # requires qw(upstream_object upstream_port);
 
+#
+# Since I've factored out some upstream related code, I could also
+# factor out some downstream code here.
+#
+# TODO: add roles +SingleDownstreamPort, +MultipleDownstreamPort
+#
+# If I go with the single/multi breakdown (to account for
+# split/combine), then I may have to rename the roles to something
+# snappier. Or, I can just treat split/combine as special cases and
+# don't decompose the port-related stuff into separate roles...
+#
+# Anyway, it probably does make sense to keep +PullsFromUpstream as a
+# separate role because it can be composed in from both +Filter and
+# +Sink roles.
+
 # During downstream object construction, this method will be called to
 # make sure that downstream is connecting to port 0. (see BUILDARGS)
 sub has_read_port { $_[1] == 0 }
