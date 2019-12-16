@@ -18,6 +18,8 @@ my $builder = Module::Build->new(
     requires => {
 	'Mojolicious'       => 0,
 	'Crypt::IDA'        => 0.03,
+	# Old (~2.000006) Role::Tiny fails on +PullsFromUpstream
+	'Role::Tiny'        => 2.001004,
         #'ABC'              => 1.6,
         #'Foo::Bar::Module' => 5.0401,
     },
