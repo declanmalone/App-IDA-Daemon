@@ -1,9 +1,7 @@
 package App::IDA::Daemon::Link::Stripe;
 
-use parent App::IDA::Daemon::Link;
+use Mojo::Base 'App::IDA::Daemon::Link';
 use Role::Tiny::With;
-
-use v5.10;
 
 # This class is a stepping stone to implementing and testing the IDA
 # Split module.
