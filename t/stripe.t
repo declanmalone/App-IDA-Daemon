@@ -72,12 +72,23 @@ $striper = App::IDA::Daemon::Link::Stripe->new(
 );
 ok (ref $striper, "Created striper");
 
-ok ($striper->can("window"));
-ok ($striper->can("stripes"));
+# Test if accessors were created from parameters
+ok ($striper->can("window"), "object has 'window' attribute");
+ok ($striper->can("stripes"), "object has 'stripes' attribute");
+is (2, $striper->window, "window accessor return value OK");
+is (3, $striper->stripes, "stripes accessor return value OK");
 
-# How BUILDARGS sets up other variables
+# How BUILDARGS sets up other variables (test via accessor methods)
 ok (defined($striper->xform_matrix()), "Constructed transform matrix");
+is (3, $striper->k, "calculated k value equals 'stripes'");
+is (1, $striper->w, "default k value equals 1");
+ok (ref ($striper->ida_splitter), "Can see internal IDA splitter?");
+ok (ref ($striper->sw), "Can access sliding window obect");
 
-is (3, $striper->k, "calculated k value equals 'stripes'?");
+# Test existence of ports
+ok ($striper->has_read_port($_), "Can read_p at port $_?") for (0..2);
+
+# Non-existent port
+ok (!$striper->has_read_port(3), "Port 3 shouldn't exist");
 
 done_testing; exit;

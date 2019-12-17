@@ -16,7 +16,7 @@ use Role::Tiny::With;
 # matrix design.
 
 use Math::FastGF2::Matrix;
-use Crypt::IDA;
+use Crypt::IDA::Algorithm;
 
 # There are some things that IDA split will do that this class doesn't
 # do:
@@ -56,7 +56,7 @@ use Crypt::IDA;
 # have to call it here, too, but it doesn't, so we don't.
 
 # The specific attributes/parameters that we need passed to new:
-has [qw(window stripes)];
+has [qw(window stripes downstream_ports)];
 
 # These will be used in the algorithm:
 has [qw(w k xform_matrix ida_splitter input_eof)];
@@ -64,16 +64,17 @@ has [qw(w k xform_matrix ida_splitter input_eof)];
 sub BUILDARGS {
     # we don't get passed $orig
     my ($self, $args, $errors) = @_;
-
     my ($window, $stripes);
-    
-    warn "self is a " . ref($self) . "\n";
-    warn "args is a " . ref($args) . "\n";
-    warn "errors is a " . ref($errors) . "\n";
 
-    # Confirm that we're called *after* other roles' BUILDARGS
-    warn "Link::Stripe::BUILDARGS() called\n";
-    say "self already contained keys: " . join ", ", keys %$self;
+    if (0) {
+	warn "self is a " . ref($self) . "\n";
+	warn "args is a " . ref($args) . "\n";
+	warn "errors is a " . ref($errors) . "\n";
+
+	# Confirm that we're called *after* other roles' BUILDARGS
+	warn "Link::Stripe::BUILDARGS() called\n";
+	say "self already contained keys: " . join ", ", keys %$self;
+    }
 
     if (!exists $args->{window}) {
 	push @$errors, "Stripe: Missing 'window' arg";
@@ -97,9 +98,22 @@ sub BUILDARGS {
 
     # Do other initialisation iff above args were correct
     if (exists ($self->{window}) and exists ($self->{stripes})) {
-
+	$self->{w} = 1;
+	$self->{downstream_ports} = $self->{k} = $stripes;
+	my $xform = $self->{xform_matrix} = Math::FastGF2::Matrix
+	    -> new_identity (size => $stripes, width => 1,
+			     org => "rowwise");
+	$self->{ida_splitter} = Crypt::IDA::Algorithm
+	    -> splitter(k => $stripes, xform => $xform,
+			bufsize => $window);
     }
 }
+
+# define methods required by +Split
+
+sub sw { $_[0]->{ida_splitter}->{sw} }
+
+
 
 # consume the required roles
 with 'App::IDA::Daemon::Link::Role::Split';
@@ -110,5 +124,9 @@ with 'App::IDA::Daemon::Link::Role::Split';
 sub split_process {
 
 }
+
+sub accept_input_columns { }
+
+sub drain_output_column { }
 
 1;
