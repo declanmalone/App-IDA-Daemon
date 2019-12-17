@@ -5,21 +5,34 @@ use Mojo::Base -role;
 
 use Mojo::IOLoop;
 
-# Some other role must supply the concrete method below:
-requires qw(write_to_internal);
+# Some other role must supply the concrete methods below:
+requires qw(write_to_internal finish_message);
 
-# See the following roles for concrete implementations:
+# TODO: Having finish_message in requires should cause test errors!
+
+# Supplied Roles that provide the concrete implementation:
 # * +InternalStringSink
 # * +InternalNullSink
 # * +InternalStreamSink
 # * +InternalDigestSink
 
-# TODO: $self->{bytes} isn't declared as an attribute (we need need a
-# BUILDARGS section)
+# Our attributes/parameters
 has qw(running preferred_bytes);
+around BUILDARGS => sub {
+    my ($orig, $self, $args, $errors) = @_;
 
-# Filters and Sink pull (call read_p) from upstream, so we compose
-# that role in here.
+    # Always silently create the object in 'not running' state,
+    # regardless of any user-supplied arg.
+    $self->{running} = 0;
+
+    # TODO: handle preferred_bytes parameter
+
+    # Call the rest of the BUILDARGS chain
+    $orig->($self, $args, $errors);
+};
+
+# Filters and Sinks pull (call read_p) from upstream, so we compose
+# that role in here to handle upstream_* parameters.
 use Role::Tiny::With;
 with 'App::IDA::Daemon::Link::Role::PullsFromUpstream';
 
@@ -32,18 +45,20 @@ sub start {
     return if $self->{running}++;
     Mojo::IOLoop->next_tick(sub { $self->_thunk });
 }
+# The name _thunk should be OK (shouldn't conflict with other roles)
 sub _thunk {
     my $self = shift;
     return unless $self->{running};
     
     $self->{upstream_object}
-    ->read_p($self->{upstream_port}, $self->{bytes})
+    ->read_p($self->{upstream_port}, $self->{preferred_bytes})
 	->then(
 	sub {
 	    my ($data, $eof) = @_;
 	    # TODO: make this promise-based
 	    $self->write_to_internal($data);
 	    if ($eof) {
+		# TODO: call finish_message() instead
 		$self->emit(finished => ${$self->{strref}});
 	    } else {
 		Mojo::IOLoop->next_tick(sub { $self->_thunk });
