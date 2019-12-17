@@ -100,17 +100,18 @@ ok (!$striper->has_read_port(3), "Port 3 shouldn't exist");
 # point:
 ok ($striper->can("read_p"), "Can striper read_p?");
 
-$striper->read_p($_, 1)->then(
-    sub {
-	# run tests on successful read_p
-	is (length($_[0]), 1, "read_p for stripe $_ returns 1 char");
-	is ($_[0], chr (ord 'a' + $_), "First byte of stripe $_ OK")
-    },
-    sub {
-	ok (0, "Not OK: read_p promise rejected with error $_[0]");
-    })
-    ->wait for (0..2);
-
+for my $port (0..2) {
+    $striper->read_p($port, 1)->then(
+	sub {
+	    # run tests on successful read_p
+	    is (length($_[0]), 1, "read_p for stripe $port returns 1 char");
+	    is ($_[0], chr(ord('a') + $_), "First byte of stripe $port OK")
+	},
+	sub {
+	    ok (0, "Not OK: read_p promise rejected with error $_[0]");
+	})
+	->wait 
+}
 
 
 done_testing; exit;

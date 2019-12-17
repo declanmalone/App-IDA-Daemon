@@ -118,9 +118,12 @@ sub _stop { $_[0]->{running} = 0 };
 sub _start {
     my $self = shift;
     return if $self->{running}++;
+    warn "Starting _greedily_process\n";
+
     my $window = $self->window           or die;
     my $ports  = $self->downstream_ports or die;
 
+    warn "call _promise_to_read for " . $window * $ports . " bytes\n";
     $self->{fill_promise} = $self->_promise_to_read($window * $ports);
 
     # schedule greedy process
@@ -133,13 +136,17 @@ sub _start {
 
 sub _promise_to_read {
     my ($self, $bytes) = @_;
-    $self->{upstream_object}->read_p($self->{upstream_port}, $bytes);
+    warn "_promise_to_read looking for $bytes bytes\n";
+    my $rc = $self->{upstream_object}->read_p($self->{upstream_port}, $bytes);
+    warn "upstream object->read_p returned a " . ref ($rc) . "\n";
+    $rc;
 }
 
 sub _resolve_drained {
     my $self = shift;
     die "No drain_promise to resolve\n"
 	unless my $promise =  defined $self->{drain_promise};
+    warn "Resolving drain_promise\n";
     $promise->resolve;
 }
 
@@ -160,26 +167,45 @@ sub _greedily_process {
     $p->then(sub {
 	# Step 0: Parse data from promises 
 	my ($data, $eof) = @_;	# (only fill_promise returns any data)
+	warn "_greedily_process promise(s) resolved\n";
 	if (defined $data) {
+	    warn "data is defined (we fulfilled a fill_promise)\n";
+	    # XXX $data that's returned is an ARRAY!
+	    # Need to flatten it
+	    $data = $data->[0];
+	    warn "Data is '$data'\n";
 	    # save data, zero-padding if we're at EOF
 	    if ($eof) {
-		$data .= "\0" while length($data) % $self->{window};
+		$data .= "\0" while length($data) % $self->{downstream_ports};
+		warn "Did padding at eof\n";
 	    }
 	    $self->{in_buf} .= $data;
-	    $self->sw->advance_read(length($data) / $self->{window});
+	    warn "self->window is $self->{window}\n";
+	    warn "Trying to call sw->advance_read\n";
+	    # XXX we get stuck here (fixed)
+	    my $amount = length($data) / $self->{downstream_ports};
+	    warn "Maybe get stuck trying to advance_read by $amount cols?\n";
+	    $self->sw->advance_read(length($data) / $self->{downstream_ports});
+	    warn "After calling sw->advance_read\n";
 	}
 
 	# Step 1: Process all we can
-	my ($read_ok, $process_ok, $write_ok, @bundle_ok);
+	my ($read_ok, $process_ok, $write_ok, @bundle_ok)
+	    = $self->sw->can_advance;
 
-	$process_ok = $self->sw->process_ok; # columns
-	my $bytes = $process_ok * $self->{window};
-	my $ports = $self->{ports};
+	warn "Trying to call sw->process_ok\n";
+	# XXX get stuck here now: (it's not even a method!)
+	# $process_ok = $self->sw->process_ok; # columns
+	warn "We can process $process_ok columns\n";
+	my $bytes = $process_ok * $self->{downstream_ports};
+	my $ports = $self->{downstream_ports};
 	# Stripe input string across output strings
 	for (my $i =0; $i < $bytes; ++$i) {
-	    $self->{out_bufs}->[$i % $ports] .= substr($self, 0, 1, "")
+	    $self->{out_bufs}->[$i % $ports] .= substr($data, 0, 1, "")
 	}
+	warn "About to advance process by $process_ok cols\n";
 	$self->sw->advance_process($process_ok);
+	warn "After calling sw->advance_process\n";
 
 	# Also update in_eof
 	$self->{in_eof} = 1 if $eof and $self->{in_buf} eq "";
@@ -209,12 +235,14 @@ sub _greedily_process {
 	    # * the slowest substream eventually advances
 	    # * that triggers the callback in the sliding window class
 	    # * that callback resolves the promise
+	    warn "Output buffer full; need drain_promise\n";
 	    $self->{drain_promise} = Mojo::Promise->new;
 	}
 
 
 	# Step 3: Schedule next processing chunk (which will wait for
 	# our new promises to resolve)
+	warn "Scheduling next loop of _greedily_process\n";
 	Mojo::IOLoop->next_tick(sub { $self->_greedily_process });
 
 	# Step 4: "wake up" any pending read_p calls This may cause
@@ -235,18 +263,21 @@ sub _greedily_process {
 #    waiting to be resolved.
 
 sub _drain_port {
-    my $self = shift;
-    my $port = shift;
+    my ($self, $port) = @_;
 
     # Pull out [$promise, $bytes]
-    my $aref = $self->{out_promises}->{$port};
+    my $aref = $self->{out_promises}->[$port];
     my ($promise, $bytes) = @$aref;
 
+    warn "Checking if drain promise exists...\n";
     return unless defined $promise;
-    
+    warn "Yes it does! ($promise for $bytes byte(s))\n";
+
     # compare what was wanted with what's available
     my $sw = $self->sw;
     my $avail = $sw->can_empty_substream($port);
+
+    warn "Currently $avail byte(s) available\n";
 
     # do nothing yet if there's no data available
     return if $avail == 0;
@@ -254,9 +285,9 @@ sub _drain_port {
     # or else we resolve the promise below ...
     $bytes = $avail if $bytes == 0;
 
-    # ... so we can delete it from self right now
-    $self->{out_promises}->{$port} = [];
-    
+    # ... so we can delete it from self now (it's in $promise)
+    $self->{out_promises}->[$port] = [];
+
     # splice data bytes and update sliding window pointers
     my $data = substr($self->{out_bufs}->[$port], 0, $avail, "");
 
@@ -266,7 +297,11 @@ sub _drain_port {
 
     # This could trigger a sw callback, which is how the internal
     # algorithm makes progress
-    $self->sw->advance_substream($port);
+    warn "Trying to advance substream $port by $bytes\n";
+    # XXX once again, advance_substream doesn't exist and we just hang
+    # 
+    $self->sw->advance_write_substream($port, $bytes);
+    warn "After advancing\n";
 
     # resolve read_p promise for this substream
     $promise->resolve($data,$eof);    

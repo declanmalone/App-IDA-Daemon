@@ -37,6 +37,7 @@ sub read_from_internal {
     $bytes = $avail if $avail < $bytes or $bytes == 0;
     $data  = substr $self->{source_buffer}, 0, $bytes, "";
     $eof   = length $self->{source_buffer} ? 0 : 1;
+    warn "InternalStringSource returning (data=$data, eof=$eof)\n";
 
     ($data, $eof);
 }
