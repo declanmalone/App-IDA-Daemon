@@ -66,7 +66,7 @@ sub BUILDARGS {
     my ($self, $args, $errors) = @_;
     my ($window, $stripes);
 
-    if (0) {
+    if (1) {
 	warn "self is a " . ref($self) . "\n";
 	warn "args is a " . ref($args) . "\n";
 	warn "errors is a " . ref($errors) . "\n";

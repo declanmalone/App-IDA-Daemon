@@ -17,7 +17,7 @@ requires qw(write_to_internal finish_message);
 # * +InternalDigestSink
 
 # Our attributes/parameters
-has qw(running preferred_bytes);
+has [qw(running preferred_bytes)];
 around BUILDARGS => sub {
     my ($orig, $self, $args, $errors) = @_;
 

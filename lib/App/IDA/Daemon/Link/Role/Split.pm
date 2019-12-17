@@ -4,6 +4,9 @@ package App::IDA::Daemon::Link::Role::Split;
 use Mojo::Base -role;
 
 use Mojo::IOLoop;
+use Mojo::Promise;
+
+use Crypt::IDA::SlidingWindow;
 
 # Code for checking upstream_* args moved to +PullsFromUpstream
 use Role::Tiny::With;
@@ -124,13 +127,13 @@ sub _start {
     Mojo::IOLoop->next_tick(sub { $self->_greedily_process });
 
     # Here's how the drain promise will be resolved
-    $self->sw->cb_write_bundle( sub { $self->_resolve_drained(); });
+    $self->sw->cb_wrote_bundle( sub { $self->_resolve_drained(); });
 }
 
 
 sub _promise_to_read {
     my ($self, $bytes) = @_;
-    $self->{upstream_source}->read_p($self->{upstream_port}, $bytes);
+    $self->{upstream_object}->read_p($self->{upstream_port}, $bytes);
 }
 
 sub _resolve_drained {
@@ -152,7 +155,7 @@ sub _greedily_process {
     # Now join the two promises and get a new one. If we're blocking
     # on both input starvation and lack of output space, we have to
     # wait for both of those to get resolved.
-    $p = Mojo::Promises->all(@promises);
+    $p = Mojo::Promise->all(@promises);
 
     $p->then(sub {
 	# Step 0: Parse data from promises 
@@ -270,8 +273,10 @@ sub _drain_port {
 }
 
 sub read_p {
-    my $self = shift;
-    my ($bytes,	$port) = @_;
+    my ($self, $port, $bytes) = @_;
+
+    warn "+Split: upstream_object is " .  $self->{upstream_object} . "\n";
+    warn "+Split: upstream_port is "   .  $self->{upstream_port}   . "\n";
 
     die "Stripe::read_p requires a 'port' arg\n" unless defined $port;
     die "A read_p on port $port is already pending\n"

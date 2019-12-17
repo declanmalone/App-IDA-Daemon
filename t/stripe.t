@@ -70,7 +70,12 @@ $striper = App::IDA::Daemon::Link::Stripe->new(
     window => 2,
     stripes => 3,
 );
+ok ($source, "Yes, source evals to true");
 ok (ref $striper, "Created striper");
+is ($striper->upstream_object, $source, "Stashed upstream_object method");
+is ($striper->upstream_port,   0,       "Stashed upstream_port method");
+is ($striper->{upstream_object}, $source, "Stashed {upstream_object}");
+is ($striper->{upstream_port},   0,       "Stashed {upstream_port}");
 
 # Test if accessors were created from parameters
 ok ($striper->can("window"), "object has 'window' attribute");

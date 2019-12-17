@@ -13,7 +13,7 @@ use Mojo::Base -role;
 # own validation code easily enough.
 
 # Attribute declaration
-has qw(upstream_object upstream_port);
+has [qw(upstream_object upstream_port)];
 
 # Parameter validation (will be called from *::Link->new())
 
@@ -48,7 +48,7 @@ around BUILDARGS => sub {
 
     } else {
 	# All tests passed: install args in $self
-	warn "Tests on $object:$port passed\n";
+	warn "Tests on upstream $object:$port passed\n";
 	$self->{upstream_object} = $object;
 	$self->{upstream_port}   = $port;
     }
