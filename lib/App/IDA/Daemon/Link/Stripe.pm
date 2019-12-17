@@ -1,21 +1,28 @@
 package App::IDA::Daemon::Link::Stripe;
 
+# Note that 'use parent ...::Link' won't inherit the parent's attr/has
+# methods due to them not being lexically declared.
+# (Mojo::Base monkey patches them into the class instead).
+
 use Mojo::Base 'App::IDA::Daemon::Link';
 use Role::Tiny::With;
 
 # This class is a stepping stone to implementing and testing the IDA
 # Split module.
-#
+
 # It does most of what the final class will do, including using
 # Crypt::IDA to do the striping(*) transform (by using an identity
 # matrix as the transform matrix), and using the same input/output
 # matrix design.
-#
+
+use Math::FastGF2::Matrix;
+use Crypt::IDA;
+
 # There are some things that IDA split will do that this class doesn't
 # do:
 #
 # * take IDA-style parameters to set up (we will only take the number
-#   of output streams/ports)
+#   of output streams/ports and the size of the sliding window)
 #
 # * include a share file header in the streams
 #
@@ -48,21 +55,50 @@ use Role::Tiny::With;
 # around it, too. If Link::BUILDARGS did any special processing, we'd
 # have to call it here, too, but it doesn't, so we don't.
 
-# The specific attributes/parameters that we need:
-has qw(window downstream_ports);
+# The specific attributes/parameters that we need passed to new:
+has [qw(window stripes)];
+
+# These will be used in the algorithm:
+has [qw(w k xform_matrix ida_splitter input_eof)];
 
 sub BUILDARGS {
     # we don't get passed $orig
     my ($self, $args, $errors) = @_;
 
+    my ($window, $stripes);
+    
     warn "self is a " . ref($self) . "\n";
     warn "args is a " . ref($args) . "\n";
     warn "errors is a " . ref($errors) . "\n";
 
-    # Confirm that we're called after other roles' BUILDARGS
+    # Confirm that we're called *after* other roles' BUILDARGS
     warn "Link::Stripe::BUILDARGS() called\n";
     say "self already contained keys: " . join ", ", keys %$self;
-    
+
+    if (!exists $args->{window}) {
+	push @$errors, "Stripe: Missing 'window' arg";
+    } elsif (!defined ($window = $args->{window})) {
+	push @$errors, "Stripe: 'window' arg undefined";
+    } elsif ($window <= 0) {
+	push @$errors, "Stripe: 'window' not strictly positive";
+    } else {
+	$self->{window} = $window;
+    }
+
+    if (!exists $args->{stripes}) {
+	push @$errors, "Stripe: Missing 'stripes' arg";
+    } elsif (!defined ($stripes = $args->{stripes})) {
+	push @$errors, "Stripe: 'stripes' arg undefined";
+    } elsif ($stripes <= 0) {
+	push @$errors, "Stripe: 'stripes' not strictly positive";
+    } else {
+	$self->{stripes} = $stripes;
+    }    
+
+    # Do other initialisation iff above args were correct
+    if (exists ($self->{window}) and exists ($self->{stripes})) {
+
+    }
 }
 
 # consume the required roles

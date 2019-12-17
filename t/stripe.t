@@ -45,12 +45,39 @@ my $source = App::IDA::Daemon::Link::StringSource->new(
 
 ok (ref $source, "Created lorem string source");
 
-my $striper = App::IDA::Daemon::Link::Stripe->new(
+my $striper;
+
+eval{
+    $striper = App::IDA::Daemon::Link::Stripe->new(
+	upstream_object => $source,
+	upstream_port => 0,
+    );
+};
+ok ($@, "Expect splat with no window arg");
+
+eval{
+    $striper = App::IDA::Daemon::Link::Stripe->new(
+	upstream_object => $source,
+	upstream_port => 0,
+	window => 2,
+    );
+};
+ok ($@, "Expect splat with no stripes arg");
+
+$striper = App::IDA::Daemon::Link::Stripe->new(
     upstream_object => $source,
     upstream_port => 0,
+    window => 2,
+    stripes => 3,
 );
-
 ok (ref $striper, "Created striper");
 
+ok ($striper->can("window"));
+ok ($striper->can("stripes"));
+
+# How BUILDARGS sets up other variables
+ok (defined($striper->xform_matrix()), "Constructed transform matrix");
+
+is (3, $striper->k, "calculated k value equals 'stripes'?");
 
 done_testing; exit;
