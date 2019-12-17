@@ -40,59 +40,59 @@ sub has_read_port {
 # the particular buffer operations and split algorithm that it uses.
 requires qw(split_process accept_input_columns drain_output_column);
 
+# Internally, the algorithm needs to set up its own variables. In
+# other places I have been using BUILDARGS, but it seems easier to use
+# 'has' instead.
+
 # I need to keep a list of outstanding promises so that if read_p
 # can't satisfy a request, it creates a new promise and takes a note
 # of the promise and how many bytes were requested.
+#
+# Later on, store a new promise in this structure with:
+#
+# $self->{out_promises}->[$port] = [ $promise, $bytes ]
+has out_promises => sub { [] };
 
-# must wrap [] in a sub to get a fresh array for every new object:
-has downstream_promises => sub { [] };
+# The greedy algorithm relies on maintaining up to two internal
+# promises:
+#
+# fill_promise: promises to give us more input data
+# drain_promise: promises to clear space in a full output buffer
 
-sub old_new {
+has [ qw(fill_promise drain_promise) ] => undef;
 
-    my $class = shift;
-    my ($upstream, $ports) = @_;
+# We also track whether the input is at eof. This is distinct from the
+# eof value which is returned by read_p because some data may still be
+# travelling through the input-process-output pipeline.
 
-    # the size of our input/output buffers
-    my $window = 30;
+has 'in_eof' => 0;
 
-    # Later, will store $href->{$portno} = [ $promise, $bytes ]
-    my $href = { map { $_ => [] } (0 .. $ports - 1) };
-    my $self = bless {
-	upstream => $upstream,
-	ports => $ports,
-	# in/out buffers are simple strings (IDA would use matrix)
-	in_buf => "",
-	# in_eof set when upstream EOF seen AND we empty our input buffer
-	in_eof => 0,
-	out_bufs => [("") x $ports],
-	out_promises => $href,
-	fill_promise => undef,
-	drain_promise => undef,
-	sw => Crypt::IDA::SlidingWindow->new (
-	    mode => split,
-	    rows => $ports,
-	    window => $window,
-	),
-    }, $class;
+# A bit more info on the algorithm
+#
+# Filling up the input buffer and transforming it is mostly
+# independent of responding to read_p calls. Even without any
+# read_p requests, the core of this module is a repeating loop
+# that greedily tries to process as much data as possible.
+#
+# There are two things that can stop this greedy loop in its
+# tracks:
+#
+# 1. we're starved of input data
+# 2. we're starved of output buffer space
+#
+# I will use promises to handle both of these:
+#
+# 1. upstream promises us to provide fresh data
+# 2. downstream promises us that data will drain
+#
+# Although I call this a loop, actually we do work in chunks and
+# queue up repeated calls to _greedily_process
 
-    # Filling up the input buffer and transforming it is mostly
-    # independent of responding to read_p calls. Even without any
-    # read_p requests, the core of this module is a repeating loop
-    # that greedily tries to process as much data as possible.
-    #
-    # There are two things that can stop this greedy loop in its
-    # tracks:
-    #
-    # 1. we're starved of input data
-    # 2. we're starved of output buffer space
-    #
-    # I will use promises to handle both of these:
-    #
-    # 1. upstream promises us to provide fresh data 
-    # 2. downstream promises us that data will drain
-    #
-    # Although I call this a loop, actually we do work in chunks and
-    # queue up repeated calls to _greedily_process
+# The code below was originally in main. Since we don't have a
+# constructor (we're a role), I have to find a way of starting
+# _greedily_process.
+
+=for doing in main
 
     # upstream fulfills the first promise
     $self->{fill_promise} = $self->_promise_to_read($window * $ports);
@@ -103,13 +103,34 @@ sub old_new {
     # Here's how the drain promise will be resolved
     $self->{sw}->cb_write_bundle( sub { $self->_resolve_drained(); });
 
-    # So I said to myself, ...
-    $self;
+=cut
+
+# Here's how: do it in read_p. It will check if the processing loop is
+# running, and if not start it using the three lines above (and set
+# running to 1). Let's factor that out here ...
+
+# Similar to code in +Sink, but keep methods private
+has running => 0;
+sub _stop { $_[0]->{running} = 0 };
+sub _start {
+    my $self = shift;
+    return if $self->{running}++;
+    my $window = $self->window           or die;
+    my $ports  = $self->downstream_ports or die;
+
+    $self->{fill_promise} = $self->_promise_to_read($window * $ports);
+
+    # schedule greedy process
+    Mojo::IOLoop->next_tick(sub { $self->_greedily_process });
+
+    # Here's how the drain promise will be resolved
+    $self->sw->cb_write_bundle( sub { $self->_resolve_drained(); });
 }
+
 
 sub _promise_to_read {
     my ($self, $bytes) = @_;
-    $self->{upstream}->read_p($bytes);
+    $self->{upstream_source}->read_p($self->{upstream_port}, $bytes);
 }
 
 sub _resolve_drained {
@@ -142,20 +163,20 @@ sub _greedily_process {
 		$data .= "\0" while length($data) % $self->{window};
 	    }
 	    $self->{in_buf} .= $data;
-	    $self->{sw}->advance_read(length($data) / $self->{window});
+	    $self->sw->advance_read(length($data) / $self->{window});
 	}
 
 	# Step 1: Process all we can
 	my ($read_ok, $process_ok, $write_ok, @bundle_ok);
 
-	$process_ok = $self->{sw}->process_ok; # columns
+	$process_ok = $self->sw->process_ok; # columns
 	my $bytes = $process_ok * $self->{window};
 	my $ports = $self->{ports};
 	# Stripe input string across output strings
 	for (my $i =0; $i < $bytes; ++$i) {
 	    $self->{out_bufs}->[$i % $ports] .= substr($self, 0, 1, "")
 	}
-	$self->{sw}->advance_process($process_ok);
+	$self->sw->advance_process($process_ok);
 
 	# Also update in_eof
 	$self->{in_eof} = 1 if $eof and $self->{in_buf} eq "";
@@ -166,8 +187,8 @@ sub _greedily_process {
 	# Clear out the old (undef/fulfilled) promises
 	$self->{fill_promise} = $self->{drain_promise} = undef;
 
-	my ($read_ok, $process_ok, $write_ok, @bundle_ok)
-	    = $self->{sw}->can_advance;
+	($read_ok, $process_ok, $write_ok, @bundle_ok)
+	    = $self->sw->can_advance;
 	die "Internal error: could process more!" if $process_ok;
 	
 	# This code should guarantee that two upstream read_p calls
@@ -202,9 +223,6 @@ sub _greedily_process {
 	     });
 }
 
-
-    
-
 # Routine to resolve/reject promise returned by read_p
 #
 # This can be called in two cases:
@@ -224,7 +242,7 @@ sub _drain_port {
     return unless defined $promise;
     
     # compare what was wanted with what's available
-    my $sw = $self->{sw};
+    my $sw = $self->sw;
     my $avail = $sw->can_empty_substream($port);
 
     # do nothing yet if there's no data available
@@ -245,7 +263,7 @@ sub _drain_port {
 
     # This could trigger a sw callback, which is how the internal
     # algorithm makes progress
-    $self->{sw}->advance_substream($port);
+    $self->sw->advance_substream($port);
 
     # resolve read_p promise for this substream
     $promise->resolve($data,$eof);    
@@ -259,11 +277,14 @@ sub read_p {
     die "A read_p on port $port is already pending\n"
 	if defined $self->{out_promises}->[$port];
 
+    # start the greedy processing loop if it's not running
+    $self->_start if !$self->{running};
+
     # prepare and stash the promise, plus bytes requested
     my $promise = $self->{out_promises}->[$port] = Mojo::Promise->new();
-    $self->{out_promises}->{$port} = [ $promise, $bytes ];
+    $self->{out_promises}->[$port] = [ $promise, $bytes ];
 
-    if ($self->{sw}->can_empty_substream($port)) {
+    if ($self->sw->can_empty_substream($port)) {
 	Mojo::IOLoop->next_tick(sub { $self -> _drain_port($port) });
     } else {
 	# Nothing we can do now; need to wait for algo to fill up the
