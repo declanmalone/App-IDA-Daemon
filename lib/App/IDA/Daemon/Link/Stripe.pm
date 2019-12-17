@@ -111,9 +111,11 @@ sub BUILDARGS {
 
 # define methods required by +Split
 
+# (apparently the downstream_ports requires is satisfied by having
+# declared it as an attribute; that didn't seem to work properly with
+# an earlier version of Role::Tiny that I was using)
+
 sub sw { $_[0]->{ida_splitter}->{sw} }
-
-
 
 # consume the required roles
 with 'App::IDA::Daemon::Link::Role::Split';
@@ -121,6 +123,7 @@ with 'App::IDA::Daemon::Link::Role::Split';
 # This sub will be called whenever there's new data that can be put
 # into the input matrix and there's free space to write the
 # transformed data into the output matrix.
+
 sub split_process {
 
 }
