@@ -81,14 +81,31 @@ is (3, $striper->stripes, "stripes accessor return value OK");
 # How BUILDARGS sets up other variables (test via accessor methods)
 ok (defined($striper->xform_matrix()), "Constructed transform matrix");
 is (3, $striper->k, "calculated k value equals 'stripes'");
-is (1, $striper->w, "default k value equals 1");
-ok (ref ($striper->ida_splitter), "Can see internal IDA splitter?");
+is (1, $striper->w, "default w value equals 1");
+ok (ref ($striper->ida_splitter), "Can see internal IDA splitter");
 ok (ref ($striper->sw), "Can access sliding window obect");
 
 # Test existence of ports
-ok ($striper->has_read_port($_), "Can read_p at port $_?") for (0..2);
+ok ($striper->has_read_port($_), "Striper has port $_?") for (0..2);
 
 # Non-existent port
 ok (!$striper->has_read_port(3), "Port 3 shouldn't exist");
+
+# Most of +Split and Stripe aren't implemented yet. Our starting
+# point:
+ok ($striper->can("read_p"), "Can striper read_p?");
+
+$striper->read_p($_, 1)->then(
+    sub {
+	# run tests on successful read_p
+	is (length($_[0]), 1, "read_p for stripe $_ returns 1 char");
+	is ($_[0], chr (ord 'a' + $_), "First byte of stripe $_ OK")
+    },
+    sub {
+	ok (0, "Not OK: read_p promise rejected with error $_[0]");
+    })
+    ->wait for (0..2);
+
+
 
 done_testing; exit;
