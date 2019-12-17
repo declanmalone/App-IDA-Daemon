@@ -12,6 +12,18 @@ use Test::Mojo;
 use Mojo::Promise;
 use Mojo::IOLoop;
 
+# This file is deprecated.
+#
+# I'm refactoring the modules tested (*P.pm) here to inherit from
+# App::IDA::Daemon::Link and use roles to encapsulate common
+# behaviour.
+#
+# The functionality of the new classes should all be similar to the
+# versions tested here, so I'll gradually move/port what's here over
+# to roles.t
+
+# -------------------------------------------------------------------
+
 # Does high-level functionality testing on promise-based processing
 # pipelines.
 #
