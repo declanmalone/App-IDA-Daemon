@@ -12,6 +12,11 @@ requires qw(write_to_internal);
 # * +InternalStringSink
 # * +InternalNullSink
 # * +InternalStreamSink
+# * +InternalDigestSink
+
+# TODO: $self->{bytes} isn't declared as an attribute (we need need a
+# BUILDARGS section)
+has qw(running preferred_bytes);
 
 # Filters and Sink pull (call read_p) from upstream, so we compose
 # that role in here.
@@ -49,3 +54,5 @@ sub _thunk {
 	});
 }
 
+
+1;

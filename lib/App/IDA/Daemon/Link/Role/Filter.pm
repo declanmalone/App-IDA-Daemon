@@ -19,7 +19,6 @@ sub read_p;   			# called by downstream
 # Code for checking upstream_* args moved to +PullsFromUpstream
 use Role::Tiny::With;
 
-
 # This was failing with Role::Tiny versions 2.000006 and 2.000005, but
 # the most recent version (2.001004) fixes it. Perhaps the failure was
 # because we don't define any methods in the role below?
@@ -44,7 +43,7 @@ with 'App::IDA::Daemon::Link::Role::PullsFromUpstream';
 #
 # Anyway, it probably does make sense to keep +PullsFromUpstream as a
 # separate role because it can be composed in from both +Filter and
-# +Sink roles.
+# +Sink roles. I'll decide whether to do further refactoring later.
 
 # During downstream object construction, this method will be called to
 # make sure that downstream is connecting to port 0. (see BUILDARGS)

@@ -33,8 +33,18 @@ sub new {
     $self;
 };
 
+# Adding this this should have caused some test errors because
+# Role::Tiny states that the class method should win out over Role
+# methods.
+
+# TODO: My tests probably don't cover something being downstream of
+# Filter (or something that consumes PullsFromUpstream) yet. Write
+# those tests then delete this to make them succeed.
+sub has_read_port { 0 };
+
 1;
 
+__END__
 
 =pod
 
@@ -43,6 +53,61 @@ sub new {
 App::IDA::Daemon::Link - A link in an asynchronous processing chain
 
 =cut
+
+TODO:
+
+* Summarise the basic idea of read_p-based processing chain
+    
+* Source/Filter/Sink, with extra Split/Combine
+
+* User-centric view: use pre-rolled *classes* (which inherit from
+  Link) to build a chain/processing pipeline.
+
+* Hand-wave towards Chain (not implemented yet) for possibility of
+  easier chain construction
+
+* Programmer-centric documentation follows (name-check Mojo::Base,
+  Role::Tiny and Class::Tiny)
+
+* Give general breakdown/summary of available roles and understanding
+  the structure of the code
+
+* How to roll your own (either through composing existing Roles or
+  writing new Roles/Classes---maybe also explain BUILDARGS)
+
+* Remove various comments scattered around the place that refer to the
+  above (in particular, mention firehose problem here just to get it
+  out of the way, then excise any other comments relating to it)
+
+More related TODOs:
+
+* Think about how to cleanly port SiloSink and SiloSource to the new
+  abstraction. I might need a new ::Util class somewhere. I might also
+  wrap the checks versus allowed_dirs in a regular BUILDARGS stanza.
+  This also has to integrate with the main program config.
+
+* On the topic of Promises, the idea of creating a Source/Sink that
+  will eventually read from or write to a socket. The whole sequence
+  of events relating to setting up that connection can be hidden.
+  Maybe better handled in some future Chain implementation. Or just
+  leave it up to the caller completely (though maybe give some code
+  samples as a hint).
+
+* I was also reminded of the question of whether CPU-intensive code
+  should be run in a sub-process. It's doable within this abstraction,
+  but I've put it on the back burner. Related: single-process versus
+  multi-process web server. Also related: a Chain as a transaction.
+
+Bear in mind that the docs for the main App::IDA::Daemon class refer
+here. This is probably going to be one of the first man pages that the
+user consults, so it should be accessible and follow on from the intro
+given in the main page.
+
+Old comments below. Just treat refactoring as a fait accompli and
+delete any mention of ongoing thought processes relating to it in the
+released code (apart from quick overview that will appear in the above
+POD docs)
+
 
 # Goals...
 #
