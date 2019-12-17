@@ -32,13 +32,14 @@ around BUILDARGS => sub {
 };
 
 # Filters and Sinks pull (call read_p) from upstream, so we compose
-# that role in here to handle upstream_* parameters.
+# an internal role in here to handle those upstream_* parameters.
 use Role::Tiny::With;
 with 'App::IDA::Daemon::Link::Role::PullsFromUpstream';
 
-# Sink comes at the end of the processing chain is responsible for
-# scheduling itself (directly via start/stop/_thunk) and everything
-# upstream of it (indirectly, via repeated calls to $upstream->read_p)
+# Sink comes at the end of the processing chain, so it's responsible
+# for scheduling itself (directly via start/stop/_thunk) and
+# everything upstream of it (indirectly, via repeated calls to
+# $upstream->read_p())
 sub stop { $_[0]->{running} = 0 }
 sub start {
     my $self = shift;
