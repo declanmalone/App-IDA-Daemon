@@ -124,12 +124,12 @@ with 'App::IDA::Daemon::Link::Role::Split';
 # into the input matrix and there's free space to write the
 # transformed data into the output matrix.
 
-sub split_process {
 
-}
+# Disable these for now. I'll write them in +Split first, then move
+# the code here when it's working.
 
-sub accept_input_columns { }
-
-sub drain_output_column { }
+# sub split_process { }
+# sub accept_input_columns { }
+# sub drain_output_column { }
 
 1;

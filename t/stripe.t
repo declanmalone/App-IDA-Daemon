@@ -122,6 +122,13 @@ Mojo::IOLoop->start;
 # done once some output buffer space becomes available? Something to
 # think about tomorrow...
 
+# OK. I think that this behaviour is correct. I was just
+# misunderstanding how ioloop interacts with pending promises. The
+# ioloop won't block unless there's an explicit wait called on a
+# pending promise. In other words, you can have many pending promises,
+# and the IO loop will still return unless you call wait on one of
+# them.
+
 warn "Doing second read";
 #sleep 3;
 
