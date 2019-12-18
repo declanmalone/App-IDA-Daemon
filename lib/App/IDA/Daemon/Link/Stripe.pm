@@ -1,7 +1,8 @@
 package App::IDA::Daemon::Link::Stripe;
 
-# Note that 'use parent ...::Link' won't inherit the parent's attr/has
-# methods due to them not being lexically declared.
+# Note that 'use parent ...::Link' below won't inherit the parent's
+# attr/has methods due to them not being lexically declared.
+#
 # (Mojo::Base monkey patches them into the class instead).
 
 use Mojo::Base 'App::IDA::Daemon::Link';
@@ -13,7 +14,8 @@ use Role::Tiny::With;
 # It does most of what the final class will do, including using
 # Crypt::IDA to do the striping(*) transform (by using an identity
 # matrix as the transform matrix), and using the same input/output
-# matrix design.
+# matrix design. Plus, Crypt::IDA::Algorithm has an embedded
+# SlidingWindow class, which we also use here and in +Split.
 
 use Math::FastGF2::Matrix;
 use Crypt::IDA::Algorithm;
@@ -108,10 +110,12 @@ sub BUILDARGS {
 			bufsize => $window);
 
 	# The above also sets up input and output matrices but doesn't
-	# give us direct access to them. 
+	# give us direct access to them. See Convenience methods
+	# directly below.
     }
 }
 
+# Convenience methods
 sub fill_stream {
     my $algo = shift->{ida_splitter};
     $algo->fill_stream(@_);
@@ -127,27 +131,75 @@ sub split_stream {
     $algo->split_stream(@_);
 }
 
-# define methods required by +Split
+# Define methods required by +Split
 
-# (apparently the downstream_ports requires is satisfied by having
-# declared it as an attribute; that didn't seem to work properly with
-# an earlier version of Role::Tiny that I was using)
+# downstream_ports already covered by 'has' declaration above
 
+# +Split needs this to set up the bundle motion callback and to query
+# the state of the pointers. We're responsible for advancing the
+# pointers, though.
 sub sw { $_[0]->{ida_splitter}->{sw} }
 
 # consume the required roles
 with 'App::IDA::Daemon::Link::Role::Split';
 
-# This sub will be called whenever there's new data that can be put
-# into the input matrix and there's free space to write the
-# transformed data into the output matrix.
-
-
-# Disable these for now. I'll write them in +Split first, then move
-# the code here when it's working.
+# I wrote these in +Split first, then moved them here after a
+# "reasonable" amount of testing/debugging.
 
 # sub split_process { }
 # sub accept_input_columns { }
 # sub drain_output_column { }
+
+sub split_process {
+    my ($self, $cols, $dataref) = @_;
+    my $ports = $self->{downstream_ports};
+    # Stripe input col(s) -> output rows
+    # TODO: use matrix operation instead of strings
+    # TODO: also need to destreaddle
+
+    $self->split_stream($cols);
+    return;
+
+    # old version using in/out bufs, manual advance
+    my $bytes = $cols * $ports;
+    for (my $i =0; $i < $bytes; ++$i) {
+	$self->{out_bufs}->[$i % $ports] .=
+	    substr($$dataref, 0, 1, "")
+    }
+    warn "About to advance process by $cols cols\n";
+    $self->sw->advance_process($cols) if $cols;
+    warn "After calling sw->advance_process\n";
+}
+
+sub accept_input_columns {
+    my ($self, $data) = @_;
+
+    # we don't even have to destraddle because Algorithm takes care of
+    # that...
+    return $self->fill_stream($data);
+
+    # old version using in buf (which should have advanced read buf,
+    # too)
+    $self->{in_buf} .= $data;
+}
+
+sub drain_output_row {
+    my ($self, $port, $bytes) = @_;
+
+    # Algorithm takes care of destraddling and advancing pointers
+    return $self->empty_substream($port, $bytes);
+    
+    # old version using separate out_bufs and manual advance
+    my $data = substr($self->{out_bufs}->[$port], 0, $bytes, "");
+
+    # This could trigger a sw callback, which is how the internal
+    # algorithm makes progress
+    warn "drain_output_row: advance substream $port by $bytes\n";
+    $self->sw->advance_write_substream($port, $bytes) if $bytes;
+    warn "After advancing\n";
+
+    $data;
+ }
+
 
 1;

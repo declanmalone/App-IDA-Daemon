@@ -293,4 +293,11 @@ ok ($striper->can("split_stream"), "Stripe exposes matrix-based split sub");
 
 # Old tests above may fail until I finish this refactoring.
 
+# The above commit is: 9b45605fad767e80ec0f0f92208476a0ecce2510
+#
+# Incidentally, in changing over from manual striping in split_process
+# to calling {ida_splitter}->split_stream($cols), this also proved
+# that transforming the input stream with the identity matrix, it
+# does the same operation.
+
 done_testing; exit;

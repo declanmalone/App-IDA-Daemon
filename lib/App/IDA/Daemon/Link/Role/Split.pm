@@ -45,6 +45,8 @@ sub has_read_port {
 # the particular buffer operations and split algorithm that it uses.
 requires qw(split_process accept_input_columns drain_output_row);
 
+# TODO: tidy up the comments below (methods moved into Stripe)
+
 # At this moment of time, the greedy processing loop seems to be
 # working, but it's based on code that was using its own buffers and
 # the actual striping is done here. I haven't factored out the three
@@ -63,57 +65,7 @@ requires qw(split_process accept_input_columns drain_output_row);
 # * using input/output matrices (rather than plain string buffers)
 # * manually advancing sliding window pointers
 # 
-
-sub split_process {
-    my ($self, $cols, $dataref) = @_;
-    my $ports = $self->{downstream_ports};
-    # Stripe input col(s) -> output rows
-    # TODO: use matrix operation instead of strings
-    # TODO: also need to destreaddle
-
-    $self->split_stream($cols);
-    return;
-
-    # old version using in/out bufs, manual advance
-    my $bytes = $cols * $ports;
-    for (my $i =0; $i < $bytes; ++$i) {
-	$self->{out_bufs}->[$i % $ports] .=
-	    substr($$dataref, 0, 1, "")
-    }
-    warn "About to advance process by $cols cols\n";
-    $self->sw->advance_process($cols) if $cols;
-    warn "After calling sw->advance_process\n";
-}
-
-sub accept_input_columns {
-    my ($self, $data) = @_;
-
-    # we don't even have to destraddle because Algorithm takes care of
-    # that...
-    return $self->fill_stream($data);
-
-    # old version using in buf (which should have advanced read buf,
-    # too)
-    $self->{in_buf} .= $data;
- }
-sub drain_output_row {
-    my ($self, $port, $bytes) = @_;
-
-    # Algorithm takes care of destraddling and advancing pointers
-    return $self->empty_substream($port, $bytes);
-    
-    # old version using separate out_bufs and manual advance
-    my $data = substr($self->{out_bufs}->[$port], 0, $bytes, "");
-
-    # This could trigger a sw callback, which is how the internal
-    # algorithm makes progress
-    warn "drain_output_row: advance substream $port by $bytes\n";
-    $self->sw->advance_write_substream($port, $bytes) if $bytes;
-    warn "After advancing\n";
-
-    $data;
- }
-
+# TODO: ENDS
 
 
 ## Internal Attributes
