@@ -105,7 +105,8 @@ for my $port (0..2) {
 	sub {
 	    # run tests on successful read_p
 	    is (length($_[0]), 1, "read_p for stripe $port returns 1 char");
-	    is ($_[0], substr("Lorem ipsum", $port,1), "First byte of stripe $port OK")
+	    is ($_[0], substr("Lorem ipsum", $port,1),
+		"First byte of stripe $port OK")
 	},
 	sub {
 	    ok (0, "Not OK: read_p promise rejected with error $_[0]");
@@ -114,9 +115,11 @@ for my $port (0..2) {
 }
 # I expect the following to hang because there's no way to fulfil the
 # internal promise(s) that Stripe should be waiting for.
-warn "Starting ioloop after first read";
-#sleep 3;
-Mojo::IOLoop->start;
+
+# warn "Starting ioloop after first read";
+# sleep 3;
+# Mojo::IOLoop->start;
+
 # Hmm. It doesn't hang. It seems that the algorithm is not so greedy
 # (or loopy?) after all. Am I not requesting that more processing is
 # done once some output buffer space becomes available? Something to
@@ -129,15 +132,16 @@ Mojo::IOLoop->start;
 # and the IO loop will still return unless you call wait on one of
 # them.
 
-warn "Doing second read";
-#sleep 3;
+# warn "Doing second read";
+# sleep 3;
 
 for my $port (0..2) {
     $striper->read_p($port, 1)->then(
 	sub {
 	    # run tests on successful read_p
 	    is (length($_[0]), 1, "read_p for stripe $port returns 1 char");
-	    is ($_[0], substr("Lorem ipsum", 3 + $port,1), "Second byte of stripe $port OK")
+	    is ($_[0], substr("Lorem ipsum", 3 + $port,1),
+		"Second byte of stripe $port OK")
 	},
 	sub {
 	    ok (0, "Not OK: read_p promise rejected with error $_[0]");
@@ -145,28 +149,130 @@ for my $port (0..2) {
 	->wait 
 }
 
-warn "Starting ioloop after second read";
-#sleep 3;
-Mojo::IOLoop->start;
-
-warn "Doing third read";
-#sleep 3;
+# warn "Starting ioloop after second read";
+# sleep 3;
+# Mojo::IOLoop->start;
+# warn "Doing third read";
 
 for my $port (0..2) {
     $striper->read_p($port, 1)->then(
 	sub {
 	    # run tests on successful read_p
 	    is (length($_[0]), 1, "read_p for stripe $port returns 1 char");
-	    is ($_[0], substr("Lorem ipsum dolor", 6 + $port,1), "Third byte of stripe $port OK")
+	    is ($_[0], substr("Lorem ipsum dolor", 6 + $port,1),
+		"Third byte of stripe $port OK")
 	},
 	sub {
 	    ok (0, "Not OK: read_p promise rejected with error $_[0]");
 	})
 	->wait 
 }
-warn "Starting ioloop after third read";
-#sleep 3;
-Mojo::IOLoop->start;
+# warn "Starting ioloop after third read";
+# sleep 3;
+# Mojo::IOLoop->start;
 
+# EOF-handling bug (and other stuff)
+#
+# After refactoring to move Stripe-specific functionality out of
+# +Split, I noticed that I have bugs relating to eof handling, among
+# other things. I need some tests to trigger them.
+
+# Four EOF cases to test, assuming 3 output rows:
+# * null input
+# * 1 byte of input
+# * 2 bytes of input
+# * 3 bytes of input
+
+# sanity check StringSource
+my $expect_string = "Should keep returning eof";
+$source = App::IDA::Daemon::Link::StringSource->new(
+    source_buffer => $expect_string);
+$source -> read_p (0, 0) -> then(
+    sub {
+	my ($data, $eof) = @_;
+	is ($data, $expect_string, "Sanity check source (get all data)");
+	ok ($eof, "Sanity check source (first eof)");
+    },
+    sub {
+	ok (0, "Sanity check source not OK (shouldn't get here)");
+    }) ->wait;
+$source -> read_p (0, 0) -> then(
+    sub {
+	my ($data, $eof) = @_;
+	is ($data, "", "Sanity check source (want any amount -> none)");
+	ok ($eof, "Sanity check source (still eof)");
+    },
+    sub {
+	ok (0, "Sanity check source not OK (shouldn't get here)");
+    }) ->wait;
+$source -> read_p (0, 1) -> then(
+    sub {
+	my ($data, $eof) = @_;
+	is ($data, "", "Sanity check source (want up to 1 byte -> none)");
+	ok ($eof, "Sanity check source (still eof)");
+    },
+    sub {
+	ok (0, "Sanity check source not OK (shouldn't get here)");
+    }) ->wait;
+
+# done_testing; exit;
+
+my $test_string = "ABCDEF...";	# three chars would suffice
+# Window size *shouldn't* be a factor, but I'll test values of 1 and 2
+# to be sure.
+for my $ws (1,2) {
+    for my $in_bytes (0..3) {
+	my $in_string = substr($test_string, 0, $in_bytes);
+
+	$source = App::IDA::Daemon::Link::StringSource->new(
+	    source_buffer => $in_string);
+
+	# I'm actually going to implement the idea that a non-zero EOF
+	# value will indicate 1 more than the number of *input* bytes that
+	# the algorithm consumed, so as well as testing that eof is
+	# actually propagated (and properly considers whether there's any
+	# pending data in the processing pipeline), I'll be testing that
+	# new feature. I'll keep them both as separate tests, though.
+
+	$striper = App::IDA::Daemon::Link::Stripe->new(
+	    upstream_object => $source,
+	    upstream_port => 0,
+	    window => $ws,
+	    stripes => 3,
+	);
+
+	for my $port (0..2) {
+	    $striper->read_p($port, 1) -> then(
+		sub {
+		    my ($data, $eof) = @_;
+		    my $expect_len = $in_bytes ? 1 : 0;
+		    is (length($data), $expect_len, "Expected number of bytes");
+
+		    # expect eof to propagate for all stripes
+		    ok ($eof, "EOF is non-zero");
+
+		    # expected eof value
+		    is ($eof, $in_bytes + 1, "Expect eof value is input bytes + 1");
+
+		    my $expect_data =
+			$in_bytes > 0
+			# either something from $in_string or null pad
+			? ($port > $in_bytes ? "\0" : substr($in_string, $port, 1))
+			# or no data
+			: "";
+		    is ($data, $expect_data, "Expected data")
+		},
+		sub {
+		    ok (0, "Not OK: read_p promise rejected with error $_[0]");
+		}
+	    ) -> wait;
+	    die;		# never gets here (∞ loop)
+	    # changing order at top of loop doesn't matter:
+	    # * ws => 1|2
+	    # * in_bytes => 0|1
+	    # all get stuck in loop
+	}
+    }
+}
 
 done_testing; exit;

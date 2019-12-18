@@ -252,6 +252,28 @@ sub _greedily_process {
 	    }
 	    # TODO: handle length($data) % downstream_ports != 0
 
+	    # We can't use a state variable declaration here since
+	    # we're in an anonymous sub that only gets called once, so
+	    # we have to add a new object attribute to store data that
+	    # doesn't fill a full column.
+
+	    # We need to work with full columns because that's a
+	    # restriction imposed by our use of SlidingWindow.
+
+	    # idea: track number of input bytes read and return that
+	    # value + 1 as eof. This would enable a truly stream-based
+	    # IDA split routine to report this value back to its
+	    # caller and have it saved so that a later combine step
+	    # can use that value to know how many padding bytes to
+	    # remove/ignore at the end.  (currently, my IDA does use a
+	    # streaming *process*, but essentially it's file-based,
+	    # since the splitter has to be told in advance how large
+	    # the file is so that it can prepend the correct header
+	    # info). Anyway, tracking bytes read only adds a tiny bit
+	    # of overhead, and returning extra information in the eof
+	    # field is practically a zero-cost abstraction, assuming
+	    # that we need to return a true value of eof anyway.
+
 	    # Refactor: call delegated method (DONE)
 	    $self->accept_input_columns($data);
 
@@ -362,7 +384,7 @@ sub _drain_port {
     # ... so we can delete it from self now (it's in $promise)
     $self->{out_promises}->[$port] = undef;
 
-    # Refactor: call delegated method
+    # Refactor: call delegated method (TODOs below)
     # splice data bytes and update sliding window pointers
 
     # delegate the data and sliding window tasks, but keep eof and
