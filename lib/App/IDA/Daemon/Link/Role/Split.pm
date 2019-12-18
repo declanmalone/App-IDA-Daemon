@@ -225,6 +225,7 @@ sub _greedily_process {
     # End condition (all input consumed, all output drained):
     if (!@promises) {
 	warn "_greedily_process finished\n";
+	$self->_stop;
 	return
     }
     
