@@ -106,7 +106,25 @@ sub BUILDARGS {
 	$self->{ida_splitter} = Crypt::IDA::Algorithm
 	    -> splitter(k => $stripes, xform => $xform,
 			bufsize => $window);
+
+	# The above also sets up input and output matrices but doesn't
+	# give us direct access to them. 
     }
+}
+
+sub fill_stream {
+    my $algo = shift->{ida_splitter};
+    $algo->fill_stream(@_);
+}
+
+sub empty_substream {
+    my $algo = shift->{ida_splitter};
+    $algo->empty_substream(@_);
+}
+
+sub split_stream {
+    my $algo = shift->{ida_splitter};
+    $algo->split_stream(@_);
 }
 
 # define methods required by +Split

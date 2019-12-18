@@ -67,11 +67,15 @@ requires qw(split_process accept_input_columns drain_output_row);
 sub split_process {
     my ($self, $cols, $dataref) = @_;
     my $ports = $self->{downstream_ports};
-    my $bytes = $cols * $ports;
     # Stripe input col(s) -> output rows
     # TODO: use matrix operation instead of strings
     # TODO: also need to destreaddle
 
+    $self->split_stream($cols);
+    return;
+
+    # old version using in/out bufs, manual advance
+    my $bytes = $cols * $ports;
     for (my $i =0; $i < $bytes; ++$i) {
 	$self->{out_bufs}->[$i % $ports] .=
 	    substr($$dataref, 0, 1, "")
@@ -83,12 +87,22 @@ sub split_process {
 
 sub accept_input_columns {
     my ($self, $data) = @_;
-    # TODO: write to matrix. Also, maybe do checks for full column
-    # and/or eof padding here
+
+    # we don't even have to destraddle because Algorithm takes care of
+    # that...
+    return $self->fill_stream($data);
+
+    # old version using in buf (which should have advanced read buf,
+    # too)
     $self->{in_buf} .= $data;
  }
 sub drain_output_row {
     my ($self, $port, $bytes) = @_;
+
+    # Algorithm takes care of destraddling and advancing pointers
+    return $self->empty_substream($port, $bytes);
+    
+    # old version using separate out_bufs and manual advance
     my $data = substr($self->{out_bufs}->[$port], 0, $bytes, "");
 
     # This could trigger a sw callback, which is how the internal
@@ -210,7 +224,8 @@ sub _resolve_drained {
 	warn "Resolving drain_promise\n";
 	$promise->resolve;		# no data/eof (@_ will be undef)
     } else {
-	# downgrade to warn
+	# downgrade to warn (shouldn't have been die in the first
+	# place)
 	warn "No drain_promise to resolve\n"
     }
 }
@@ -227,7 +242,11 @@ sub _greedily_process {
     # End condition (all input consumed, all output drained):
     if (!@promises) {
 	warn "_greedily_process finished\n";
-	$self->_stop;
+	# By calling _stop, if read_p is called again after eof, it
+	# wakes us up again and we can return proper eof. I think that
+	# as an alternative, I could handle that in read_p itself. It
+	# might make this code a bit clearer.
+	$self->_stop;		
 	return
     }
     
@@ -239,10 +258,6 @@ sub _greedily_process {
     $p->then(sub {
 	# Step 0: Parse data from promises
 	
-	# TODO: I should have 'my ($p1,$p2) = @_' because the return
-	# value from Promise->all will be ([]) or ([],[]). I need to
-	# change 'if (defined $data)' too... (see next XXX)
-	#
 	my ($p1,$p2) = @_;
 	my $data = $p1->[0];	# (only fill_promise sets data)
 	my $eof  = $p1->[1] // 0;
@@ -259,40 +274,21 @@ sub _greedily_process {
 		    warn "Added a byte of padding\n";
 		}
 	    }
-	    # TODO: handle length($data) % downstream_ports != 0
-
-	    # We can't use a state variable declaration here since
-	    # we're in an anonymous sub that only gets called once, so
-	    # we have to add a new object attribute to store data that
-	    # doesn't fill a full column.
-
-	    # We need to work with full columns because that's a
-	    # restriction imposed by our use of SlidingWindow.
-
-	    # idea: track number of input bytes read and return that
-	    # value + 1 as eof. This would enable a truly stream-based
-	    # IDA split routine to report this value back to its
-	    # caller and have it saved so that a later combine step
-	    # can use that value to know how many padding bytes to
-	    # remove/ignore at the end.  (currently, my IDA does use a
-	    # streaming *process*, but essentially it's file-based,
-	    # since the splitter has to be told in advance how large
-	    # the file is so that it can prepend the correct header
-	    # info). Anyway, tracking bytes read only adds a tiny bit
-	    # of overhead, and returning extra information in the eof
-	    # field is practically a zero-cost abstraction, assuming
-	    # that we need to return a true value of eof anyway.
 
 	    # Refactor: call delegated method (DONE)
 	    $self->accept_input_columns($data);
 
-	    warn "self->window is $self->{window}\n";
-	    warn "Trying to call sw->advance_read\n";
+	    if (0) {
+		# responsibility for advancing pointers is now passing
+		# to the consuming class
+		warn "self->window is $self->{window}\n";
+		warn "Trying to call sw->advance_read\n";
 	    
-	    my $amount = length($data) / $self->{downstream_ports};
-	    warn "call advance_read($amount cols)\n";
-	    $self->sw->advance_read($amount) if $amount;
-	    warn "After calling sw->advance_read\n";
+		my $amount = length($data) / $self->{downstream_ports};
+		warn "call advance_read($amount cols)\n";
+		$self->sw->advance_read($amount) if $amount;
+		warn "After calling sw->advance_read\n";
+	    }
 	}
 
 	# Step 1: Process all we can
@@ -356,10 +352,13 @@ sub _greedily_process {
 	warn "PORTS is $ports\n"; # correct
 	# WTF? called different number of times if port is 0/other
 	foreach my $p (0 .. $ports - 1) {
-	    warn "CALLING drain_port($p)\n";
+	    warn "NEXT_TICKING drain_port($p)\n";
     	    Mojo::IOLoop->next_tick(sub { $self -> _drain_port($p) });
 
-	    #$self->_drain_port($p);
+	    # Apparently we need to next_tick because _drain_port can
+	    # resolve a promise and then control won't get passed back
+	    # here afterwards. At least that's the way it looks.
+	    # $self->_drain_port($p); # no good
 	}
 	warn "Falling off end of _greedily_process\n";
 	0;

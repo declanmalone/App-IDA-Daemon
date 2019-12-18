@@ -217,6 +217,18 @@ $source -> read_p (0, 1) -> then(
 
 # done_testing; exit;
 
+# IDEA: Track number of input bytes read and return that value + 1 as
+# eof. This would enable a truly stream-based IDA split routine to
+# report this value back to its caller and have it saved so that a
+# later combine step can use that value to know how many padding bytes
+# to remove/ignore at the end.  (currently, my IDA does use a
+# streaming *process*, but essentially it's file-based, since the
+# splitter has to be told in advance how large the file is so that it
+# can prepend the correct header info). Anyway, tracking bytes read
+# only adds a tiny bit of overhead, and returning extra information in
+# the eof field is practically a zero-cost abstraction, assuming that
+# we need to return a true value of eof anyway.
+
 my $test_string = "ABCDEF...";	# three chars would suffice
 # Window size *shouldn't* be a factor, but I'll test values of 1 and 2
 # to be sure.
@@ -271,5 +283,14 @@ for my $ws (1,2) {
 	#die;		# never gets here (∞ loop)
     }
 }
+
+# New refactoring: I got striping working with input/output buffers,
+# but to make it more similar to an IDA split, I need to change these
+# to matrices.
+ok ($striper->can("fill_stream"), "Stripe exposes matrix-filling sub");
+ok ($striper->can("empty_substream"), "Stripe exposes matrix-emptying sub");
+ok ($striper->can("split_stream"), "Stripe exposes matrix-based split sub");
+
+# Old tests above may fail until I finish this refactoring.
 
 done_testing; exit;
