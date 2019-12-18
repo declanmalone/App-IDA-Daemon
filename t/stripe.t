@@ -113,5 +113,13 @@ for my $port (0..2) {
 	->wait 
 }
 
+# I expect the following to hang because there's no way to fulfil the
+# internal promise(s) that Stripe should be waiting for.
+Mojo::IOLoop->start;
+
+# Hmm. It doesn't hang. It seems that the algorithm is not so greedy
+# (or loopy?) after all. Am I not requesting that more processing is
+# done once some output buffer space becomes available? Something to
+# think about tomorrow...
 
 done_testing; exit;
