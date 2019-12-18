@@ -72,9 +72,6 @@ sub split_process {
     # TODO: use matrix operation instead of strings
     # TODO: also need to destreaddle
 
-    # TODO: we have a bug in the existing code because we're splicing
-    # bytes out of $data instead of {in_buf}. Thus we'll never
-    # calculate {in_eof} properly.
     for (my $i =0; $i < $bytes; ++$i) {
 	$self->{out_bufs}->[$i % $ports] .=
 	    substr($$dataref, 0, 1, "")
@@ -96,7 +93,7 @@ sub drain_output_row {
 
     # This could trigger a sw callback, which is how the internal
     # algorithm makes progress
-    warn "Trying to advance substream $port by $bytes\n";
+    warn "drain_output_row: advance substream $port by $bytes\n";
     # XXX once again, advance_substream doesn't exist and we just hang
     # 
     $self->sw->advance_write_substream($port, $bytes);
@@ -250,6 +247,7 @@ sub _greedily_process {
 	if (defined $data) {
 	    warn "data is defined (we fulfilled a fill_promise)\n";
 	    warn "Data is '$data'\n";
+	    $self->{input_bytes_read} += length $data;
 	    # save data, zero-padding if we're at EOF
 	    if ($eof) {
 		warn "Got upstream eof\n";
@@ -289,7 +287,7 @@ sub _greedily_process {
 	    warn "Trying to call sw->advance_read\n";
 	    
 	    my $amount = length($data) / $self->{downstream_ports};
-	    warn "Maybe get stuck trying to advance_read by $amount cols?\n";
+	    warn "call advance_read($amount cols)\n";
 	    $self->sw->advance_read(length($data) / $self->{downstream_ports});
 	    warn "After calling sw->advance_read\n";
 	}
@@ -307,12 +305,8 @@ sub _greedily_process {
 	# This was moved into sub, but we need the variable here too
 	my $ports = $self->{downstream_ports};
 	
-	# BUG: Two bugs, actually wrong semantics and {in_buf} will
-	# never empty.
-	# The fix for the first is to just set in_eof if eof.
-	# We also need to consult in_eof when draining the out_bufs.
-	# That combination will give in_eof the right semantics.
-	$self->{in_eof} = 1 if $eof;
+	# set in_eof
+	$self->{in_eof} = $self->{input_bytes_read} + 1 if $eof;
 
 	# Step 2: Figure out what's blocking us now and make new
 	# promises that those blockages will be resolved.
@@ -413,7 +407,7 @@ sub _drain_port {
     my $data = $self->drain_output_row($port, $bytes);
 
     my $eof = ($self->{in_eof} && !$self->sw->can_empty_substream($port))
-	? 1 : 0;
+	? $self->{in_eof} : 0;
 
     warn "Bytes were available; in_eof = $self->{in_eof}; eof = $eof\n";
     # resolve read_p promise for this substream
@@ -439,6 +433,7 @@ sub read_p {
     $self->{out_promises}->[$port] = [ $promise, $bytes ];
 
     if ($self->sw->can_empty_substream($port)) {
+	warn "read_p about to _drain_port($port)";
 	# Mojo::IOLoop->next_tick(sub { $self -> _drain_port($port) });
 	$self -> _drain_port($port);
     } else {
