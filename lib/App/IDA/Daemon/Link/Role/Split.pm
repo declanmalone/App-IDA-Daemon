@@ -225,6 +225,12 @@ sub _greedily_process {
     $p = $self->{fill_promise};    push @promises, $p if $p;
     $p = $self->{drain_promise};   push @promises, $p if $p;
 
+    # End condition (all input consumed, all output drained):
+    if (!@promises) {
+	warn "_greedily_process finished\n";
+	return
+    }
+    
     # Now join the two promises and get a new one. If we're blocking
     # on both input starvation and lack of output space, we have to
     # wait for both of those to get resolved.
@@ -281,7 +287,7 @@ sub _greedily_process {
 
 	    warn "self->window is $self->{window}\n";
 	    warn "Trying to call sw->advance_read\n";
-	    # XXX we get stuck here (fixed)
+	    
 	    my $amount = length($data) / $self->{downstream_ports};
 	    warn "Maybe get stuck trying to advance_read by $amount cols?\n";
 	    $self->sw->advance_read(length($data) / $self->{downstream_ports});
@@ -346,7 +352,7 @@ sub _greedily_process {
 	# the drain_promise to become fulfilled, but that shouldn't
 	# cause any problems when we get back to the top of this
 	# routine in the next tick
-	map { $self->_drain_port($_) } (0 .. $ports - 1);
+	for (0 .. $ports - 1) { $self->_drain_port($_) } ;
 	
 	     });
 }
@@ -376,12 +382,12 @@ sub _drain_port {
 
     warn "Currently $avail byte(s) available\n";
 
-    # If there's no data available, it's either because we're at eof
-    # or we're still waiting for input
+    # If there's no data available, we could be at eof or still
+    # waiting for an upstream read_p
     if ($avail == 0) {
 	if ($self->{in_eof}) {
 	    warn "_drain_port saw upstream eof\n";
-	    my $read_ok = $self->sw->can_fill();
+	    my $read_ok = $sw->can_fill();
 	    warn "SW reports it can hold $read_ok cols of input\n";
 	    if ($read_ok == $self->window()) {
 		warn "Input empty too: resolving ('',$self->{in_eof}) \n";
@@ -391,7 +397,7 @@ sub _drain_port {
 		warn "There's still some unprocessed input\n";
 	    }
 	} else {
-	    warn "_drain_port doesn't see upstream eof\n";
+	    warn "_drain_port still waiting for upstream data\n";
 	}
 	return;
     }
@@ -402,26 +408,14 @@ sub _drain_port {
     # ... so we can delete it from self now (it's in $promise)
     $self->{out_promises}->[$port] = undef;
 
-    # Refactor: call delegated method (TODOs below)
-    # splice data bytes and update sliding window pointers
-
-    # delegate the data and sliding window tasks, but keep eof and
-    # promise handling here (renamed to drain_output_row)
+    # Call delegated method. It does the data and sliding window
+    # tasks, but we keep eof and promise handling here
     my $data = $self->drain_output_row($port, $bytes);
 
-    # Figure out correct EOF flag for this substream/port
-    # TODO: rewrite with new logic:
-    # if in_eof and (input buffer empty) and (this output row empty)
+    my $eof = ($self->{in_eof} && !$self->sw->can_empty_substream($port))
+	? 1 : 0;
 
-    # TODO: add feature to SlidingWindow to return fill levels
-    # required to implement the above (if it doesn't already have
-    # it).
-
-    # TODO: We shouldn't be looking at {out_bufs} here.
-
-    my $eof = 0;
-    $eof++ if $self->{in_eof} and $self->{out_bufs}->[$port] eq "";
-
+    warn "Bytes were available; in_eof = $self->{in_eof}; eof = $eof\n";
     # resolve read_p promise for this substream
     $promise->resolve($data,$eof);    
 }
@@ -429,6 +423,7 @@ sub _drain_port {
 sub read_p {
     my ($self, $port, $bytes) = @_;
 
+    warn "+Split:read_p($port, $bytes)\n";
     warn "+Split: upstream_object is " .  $self->{upstream_object} . "\n";
     warn "+Split: upstream_port is "   .  $self->{upstream_port}   . "\n";
 
@@ -440,11 +435,12 @@ sub read_p {
     $self->_start if !$self->{running};
 
     # prepare and stash the promise, plus bytes requested
-    my $promise = $self->{out_promises}->[$port] = Mojo::Promise->new();
+    my $promise = Mojo::Promise->new();
     $self->{out_promises}->[$port] = [ $promise, $bytes ];
 
     if ($self->sw->can_empty_substream($port)) {
-	Mojo::IOLoop->next_tick(sub { $self -> _drain_port($port) });
+	# Mojo::IOLoop->next_tick(sub { $self -> _drain_port($port) });
+	$self -> _drain_port($port);
     } else {
 	# Nothing we can do now; need to wait for algo to fill up the
 	# output buffer, at which point *it* calls _drain_port

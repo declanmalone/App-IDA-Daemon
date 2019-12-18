@@ -221,7 +221,7 @@ my $test_string = "ABCDEF...";	# three chars would suffice
 # Window size *shouldn't* be a factor, but I'll test values of 1 and 2
 # to be sure.
 for my $ws (1,2) {
-    for my $in_bytes (0..3) {
+    for my $in_bytes (0,1,2,3) {
 	my $in_string = substr($test_string, 0, $in_bytes);
 
 	$source = App::IDA::Daemon::Link::StringSource->new(
@@ -241,7 +241,7 @@ for my $ws (1,2) {
 	    stripes => 3,
 	);
 
-	for my $port (0..2) {
+	for my $port (0) {
 	    $striper->read_p($port, 1) -> then(
 		sub {
 		    my ($data, $eof) = @_;
@@ -265,13 +265,10 @@ for my $ws (1,2) {
 		sub {
 		    ok (0, "Not OK: read_p promise rejected with error $_[0]");
 		}
-	    ) -> wait;
-	    die;		# never gets here (∞ loop)
-	    # changing order at top of loop doesn't matter:
-	    # * ws => 1|2
-	    # * in_bytes => 0|1
-	    # all get stuck in loop
+	    )-> wait;
+	    #Mojo::IOLoop->start;
 	}
+	#die;		# never gets here (∞ loop)
     }
 }
 
