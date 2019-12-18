@@ -241,7 +241,7 @@ for my $ws (1,2) {
 	    stripes => 3,
 	);
 
-	for my $port (1) {
+	for my $port (2) {
 	    $striper->read_p($port, 1) -> then(
 		sub {
 		    my ($data, $eof) = @_;
@@ -257,7 +257,7 @@ for my $ws (1,2) {
 		    my $expect_data =
 			$in_bytes > 0
 			# either something from $in_string or null pad
-			? ($port > $in_bytes ? "\0" : substr($in_string, $port, 1))
+			? ($port >= $in_bytes ? "\0" : substr($in_string, $port, 1))
 			# or no data
 			: "";
 		    is ($data, $expect_data, "Expected data")
@@ -266,7 +266,7 @@ for my $ws (1,2) {
 		    ok (0, "Not OK: read_p promise rejected with error $_[0]");
 		}
 	    )-> wait;
-	    #Mojo::IOLoop->start;
+	    # Mojo::IOLoop->start;
 	}
 	#die;		# never gets here (∞ loop)
     }

@@ -131,7 +131,7 @@ has [ qw(fill_promise drain_promise) ] => undef;
 # eof value which is returned by read_p because some data may still be
 # travelling through the input-process-output pipeline.
 
-has 'in_eof' => 0;
+has in_eof => 0;
 
 # A bit more info on the algorithm
 #
@@ -304,7 +304,8 @@ sub _greedily_process {
 	$self->split_process($cols, \$data);
 	# This was moved into sub, but we need the variable here too
 	my $ports = $self->{downstream_ports};
-	
+	warn "PORTS is $ports\n"; # correct
+
 	# set in_eof
 	$self->{in_eof} = $self->{input_bytes_read} + 1 if $eof;
 
@@ -346,8 +347,16 @@ sub _greedily_process {
 	# the drain_promise to become fulfilled, but that shouldn't
 	# cause any problems when we get back to the top of this
 	# routine in the next tick
-	for (0 .. $ports - 1) { $self->_drain_port($_) } ;
-	
+	warn "PORTS is $ports\n"; # correct
+	# WTF? called different number of times if port is 0/other
+	foreach my $p (0 .. $ports - 1) {
+	    warn "CALLING drain_port($p)\n";
+    	    Mojo::IOLoop->next_tick(sub { $self -> _drain_port($p) });
+
+	    #$self->_drain_port($p);
+	}
+	warn "Falling off end of _greedily_process\n";
+	0;
 	     });
 }
 
@@ -364,6 +373,8 @@ sub _drain_port {
 
     # Pull out [$promise, $bytes]
     my $aref = $self->{out_promises}->[$port];
+    return unless defined $aref;
+
     my ($promise, $bytes) = @$aref;
 
     warn "Checking if drain promise exists...\n";
@@ -379,13 +390,15 @@ sub _drain_port {
     # If there's no data available, we could be at eof or still
     # waiting for an upstream read_p
     if ($avail == 0) {
+	# return;
 	if ($self->{in_eof}) {
 	    warn "_drain_port saw upstream eof\n";
 	    my $read_ok = $sw->can_fill();
 	    warn "SW reports it can hold $read_ok cols of input\n";
 	    if ($read_ok == $self->window()) {
 		warn "Input empty too: resolving ('',$self->{in_eof}) \n";
-		$promise->resolve("", $self->{in_eof});
+		Mojo::IOLoop->next_tick(
+		    sub {$promise->resolve("", $self->{in_eof})});
 		$self->{out_promises}->[$port] = undef;
 	    } else {
 		warn "There's still some unprocessed input\n";
@@ -406,12 +419,13 @@ sub _drain_port {
     # tasks, but we keep eof and promise handling here
     my $data = $self->drain_output_row($port, $bytes);
 
+    warn "PORT is $port\n";
     my $eof = ($self->{in_eof} && !$self->sw->can_empty_substream($port))
 	? $self->{in_eof} : 0;
 
     warn "Bytes were available; in_eof = $self->{in_eof}; eof = $eof\n";
     # resolve read_p promise for this substream
-    $promise->resolve($data,$eof);    
+    Mojo::IOLoop->next_tick(sub { $promise->resolve($data,$eof)});
 }
 
 sub read_p {
