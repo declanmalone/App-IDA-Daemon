@@ -39,9 +39,53 @@ sub has_read_port {
 # amount of buffer space available (plus availability of upstream
 # data) so even though it's greedy, it can never overflow buffers.
 
+## Refactoring
+
 # The consuming class must provide these concrete methods to handle
 # the particular buffer operations and split algorithm that it uses.
 requires qw(split_process accept_input_columns drain_output_column);
+
+# At this moment of time, the greedy processing loop seems to be
+# working, but it's based on code that was using its own buffers and
+# the actual striping is done here. I haven't factored out the three
+# routines above yet, in other words.
+
+# As a temporary step, I'm going to work on the refactoring here, and
+# then I can move the working code into the Stripe class where it
+# belongs.
+
+# Recall that this role will be consumed by both Stripe (my "toy"
+# feature intended as a testbed) and the full IDA Split classes.  The
+# code that I migrate in here to handle Stripe-specific code will have
+# to have analoguous code when working with the full IDA class,
+# including:
+#
+# * using input/output matrices (rather than plain string buffers)
+# * manually advancing sliding window pointers
+# 
+
+sub split_process {
+    my ($self, $cols, $dataref) = @_;
+    my $ports = $self->{downstream_ports};
+    my $bytes = $cols * $ports;
+    # Stripe input col(s) -> output rows
+    # TODO: use matrix operation instead of strings
+    # TODO: also need to destreaddle
+    for (my $i =0; $i < $bytes; ++$i) {
+	$self->{out_bufs}->[$i % $ports] .=
+	    substr($$dataref, 0, 1, "")
+    }
+    warn "About to advance process by $cols cols\n";
+    $self->sw->advance_process($cols);
+    warn "After calling sw->advance_process\n";
+}
+
+sub accept_input_columns { }
+sub drain_output_column { }
+
+
+
+## Internal Attributes
 
 # Internally, the algorithm needs to set up its own variables. In
 # other places I have been using BUILDARGS, but it seems easier to use
@@ -197,16 +241,14 @@ sub _greedily_process {
 	# XXX get stuck here now: (it's not even a method!)
 	# $process_ok = $self->sw->process_ok; # columns
 	warn "We can process $process_ok columns\n";
-	my $bytes = $process_ok * $self->{downstream_ports};
-	my $ports = $self->{downstream_ports};
-	# Stripe input string across output strings
-	for (my $i =0; $i < $bytes; ++$i) {
-	    $self->{out_bufs}->[$i % $ports] .= substr($data, 0, 1, "")
-	}
-	warn "About to advance process by $process_ok cols\n";
-	$self->sw->advance_process($process_ok);
-	warn "After calling sw->advance_process\n";
 
+	# Refactor: call split_process instead of striping here
+	my $cols = $process_ok;
+	# TODO: don't send \$data 
+	$self->split_process($cols, \$data);
+	# This was moved into sub, but we need the variable here too
+	my $ports = $self->{downstream_ports};
+	
 	# Also update in_eof
 	$self->{in_eof} = 1 if $eof and $self->{in_buf} eq "";
 
