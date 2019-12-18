@@ -213,7 +213,7 @@ sub _resolve_drained {
     die "No drain_promise to resolve\n"
 	unless defined(my $promise = $self->{drain_promise});
     warn "Resolving drain_promise\n";
-    $promise->resolve;
+    $promise->resolve;		# no data/eof (@_ will be undef)
 }
 
 sub _greedily_process {
@@ -236,19 +236,21 @@ sub _greedily_process {
 	# TODO: I should have 'my ($p1,$p2) = @_' because the return
 	# value from Promise->all will be ([]) or ([],[]). I need to
 	# change 'if (defined $data)' too... (see next XXX)
-	# 
-	my ($data, $eof) = @_;	# (only fill_promise returns any data)
+	#
+	my ($p1,$p2) = @_;
+	my $data = $p1->[0];	# (only fill_promise sets data)
+	my $eof  = $p1->[1] // 0;
 	warn "_greedily_process promise(s) resolved\n";
 	if (defined $data) {
 	    warn "data is defined (we fulfilled a fill_promise)\n";
-	    # XXX $data that's returned is an ARRAY!
-	    # Need to flatten it
-	    $data = $data->[0];
 	    warn "Data is '$data'\n";
 	    # save data, zero-padding if we're at EOF
 	    if ($eof) {
-		$data .= "\0" while length($data) % $self->{downstream_ports};
-		warn "Did padding at eof\n";
+		warn "Got upstream eof\n";
+		while ( length($data) % $self->{downstream_ports}) {
+		    $data .= "\0";
+		    warn "Added a byte of padding\n";
+		}
 	    }
 	    # TODO: handle length($data) % downstream_ports != 0
 
@@ -304,7 +306,7 @@ sub _greedily_process {
 	# The fix for the first is to just set in_eof if eof.
 	# We also need to consult in_eof when draining the out_bufs.
 	# That combination will give in_eof the right semantics.
-	$self->{in_eof} = 1 if $eof and $self->{in_buf} eq "";
+	$self->{in_eof} = 1 if $eof;
 
 	# Step 2: Figure out what's blocking us now and make new
 	# promises that those blockages will be resolved.
@@ -319,7 +321,7 @@ sub _greedily_process {
 	# This code should guarantee that two upstream read_p calls
 	# can't be active at once (since we need to fulfil the first
 	# promise before calling the upstream read_p again)
-	if ($read_ok) {
+	if ($read_ok and !$eof) {
 	    $self->{fill_promise} = $self->_promise_to_read($read_ok * $ports);
 	}
 
@@ -334,7 +336,6 @@ sub _greedily_process {
 	    warn "Output buffer full; need drain_promise\n";
 	    $self->{drain_promise} = Mojo::Promise->new;
 	}
-
 
 	# Step 3: Schedule next processing chunk (which will wait for
 	# our new promises to resolve)
@@ -375,8 +376,25 @@ sub _drain_port {
 
     warn "Currently $avail byte(s) available\n";
 
-    # do nothing yet if there's no data available
-    return if $avail == 0;
+    # If there's no data available, it's either because we're at eof
+    # or we're still waiting for input
+    if ($avail == 0) {
+	if ($self->{in_eof}) {
+	    warn "_drain_port saw upstream eof\n";
+	    my $read_ok = $self->sw->can_fill();
+	    warn "SW reports it can hold $read_ok cols of input\n";
+	    if ($read_ok == $self->window()) {
+		warn "Input empty too: resolving ('',$self->{in_eof}) \n";
+		$promise->resolve("", $self->{in_eof});
+		$self->{out_promises}->[$port] = undef;
+	    } else {
+		warn "There's still some unprocessed input\n";
+	    }
+	} else {
+	    warn "_drain_port doesn't see upstream eof\n";
+	}
+	return;
+    }
 
     # or else we resolve the promise below ...
     $bytes = $avail if $bytes == 0;
