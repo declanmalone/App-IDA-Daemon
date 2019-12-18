@@ -43,7 +43,7 @@ sub has_read_port {
 
 # The consuming class must provide these concrete methods to handle
 # the particular buffer operations and split algorithm that it uses.
-requires qw(split_process accept_input_columns drain_output_column);
+requires qw(split_process accept_input_columns drain_output_row);
 
 # At this moment of time, the greedy processing loop seems to be
 # working, but it's based on code that was using its own buffers and
@@ -71,6 +71,10 @@ sub split_process {
     # Stripe input col(s) -> output rows
     # TODO: use matrix operation instead of strings
     # TODO: also need to destreaddle
+
+    # TODO: we have a bug in the existing code because we're splicing
+    # bytes out of $data instead of {in_buf}. Thus we'll never
+    # calculate {in_eof} properly.
     for (my $i =0; $i < $bytes; ++$i) {
 	$self->{out_bufs}->[$i % $ports] .=
 	    substr($$dataref, 0, 1, "")
@@ -80,8 +84,26 @@ sub split_process {
     warn "After calling sw->advance_process\n";
 }
 
-sub accept_input_columns { }
-sub drain_output_column { }
+sub accept_input_columns {
+    my ($self, $data) = @_;
+    # TODO: write to matrix. Also, maybe do checks for full column
+    # and/or eof padding here
+    $self->{in_buf} .= $data;
+ }
+sub drain_output_row {
+    my ($self, $port, $bytes) = @_;
+    my $data = substr($self->{out_bufs}->[$port], 0, $bytes, "");
+
+    # This could trigger a sw callback, which is how the internal
+    # algorithm makes progress
+    warn "Trying to advance substream $port by $bytes\n";
+    # XXX once again, advance_substream doesn't exist and we just hang
+    # 
+    $self->sw->advance_write_substream($port, $bytes);
+    warn "After advancing\n";
+
+    $data;
+ }
 
 
 
@@ -209,7 +231,12 @@ sub _greedily_process {
     $p = Mojo::Promise->all(@promises);
 
     $p->then(sub {
-	# Step 0: Parse data from promises 
+	# Step 0: Parse data from promises
+	
+	# TODO: I should have 'my ($p1,$p2) = @_' because the return
+	# value from Promise->all will be ([]) or ([],[]). I need to
+	# change 'if (defined $data)' too... (see next XXX)
+	# 
 	my ($data, $eof) = @_;	# (only fill_promise returns any data)
 	warn "_greedily_process promise(s) resolved\n";
 	if (defined $data) {
@@ -223,7 +250,11 @@ sub _greedily_process {
 		$data .= "\0" while length($data) % $self->{downstream_ports};
 		warn "Did padding at eof\n";
 	    }
-	    $self->{in_buf} .= $data;
+	    # TODO: handle length($data) % downstream_ports != 0
+
+	    # Refactor: call delegated method (DONE)
+	    $self->accept_input_columns($data);
+
 	    warn "self->window is $self->{window}\n";
 	    warn "Trying to call sw->advance_read\n";
 	    # XXX we get stuck here (fixed)
@@ -237,19 +268,20 @@ sub _greedily_process {
 	my ($read_ok, $process_ok, $write_ok, @bundle_ok)
 	    = $self->sw->can_advance;
 
-	warn "Trying to call sw->process_ok\n";
-	# XXX get stuck here now: (it's not even a method!)
-	# $process_ok = $self->sw->process_ok; # columns
 	warn "We can process $process_ok columns\n";
 
-	# Refactor: call split_process instead of striping here
+	# Refactor: call delegated method (DONE)
 	my $cols = $process_ok;
 	# TODO: don't send \$data 
 	$self->split_process($cols, \$data);
 	# This was moved into sub, but we need the variable here too
 	my $ports = $self->{downstream_ports};
 	
-	# Also update in_eof
+	# BUG: Two bugs, actually wrong semantics and {in_buf} will
+	# never empty.
+	# The fix for the first is to just set in_eof if eof.
+	# We also need to consult in_eof when draining the out_bufs.
+	# That combination will give in_eof the right semantics.
 	$self->{in_eof} = 1 if $eof and $self->{in_buf} eq "";
 
 	# Step 2: Figure out what's blocking us now and make new
@@ -330,20 +362,25 @@ sub _drain_port {
     # ... so we can delete it from self now (it's in $promise)
     $self->{out_promises}->[$port] = undef;
 
+    # Refactor: call delegated method
     # splice data bytes and update sliding window pointers
-    my $data = substr($self->{out_bufs}->[$port], 0, $bytes, "");
+
+    # delegate the data and sliding window tasks, but keep eof and
+    # promise handling here (renamed to drain_output_row)
+    my $data = $self->drain_output_row($port, $bytes);
 
     # Figure out correct EOF flag for this substream/port
+    # TODO: rewrite with new logic:
+    # if in_eof and (input buffer empty) and (this output row empty)
+
+    # TODO: add feature to SlidingWindow to return fill levels
+    # required to implement the above (if it doesn't already have
+    # it).
+
+    # TODO: We shouldn't be looking at {out_bufs} here.
+
     my $eof = 0;
     $eof++ if $self->{in_eof} and $self->{out_bufs}->[$port] eq "";
-
-    # This could trigger a sw callback, which is how the internal
-    # algorithm makes progress
-    warn "Trying to advance substream $port by $bytes\n";
-    # XXX once again, advance_substream doesn't exist and we just hang
-    # 
-    $self->sw->advance_write_substream($port, $bytes);
-    warn "After advancing\n";
 
     # resolve read_p promise for this substream
     $promise->resolve($data,$eof);    
