@@ -286,7 +286,7 @@ sub _drain_port {
     $bytes = $avail if $bytes == 0;
 
     # ... so we can delete it from self now (it's in $promise)
-    $self->{out_promises}->[$port] = [];
+    $self->{out_promises}->[$port] = undef;
 
     # splice data bytes and update sliding window pointers
     my $data = substr($self->{out_bufs}->[$port], 0, $bytes, "");

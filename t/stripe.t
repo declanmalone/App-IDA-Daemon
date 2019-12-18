@@ -105,7 +105,32 @@ for my $port (0..2) {
 	sub {
 	    # run tests on successful read_p
 	    is (length($_[0]), 1, "read_p for stripe $port returns 1 char");
-	    is ($_[0], substr("Lorem", $port,1), "First byte of stripe $port OK")
+	    is ($_[0], substr("Lorem ipsum", $port,1), "First byte of stripe $port OK")
+	},
+	sub {
+	    ok (0, "Not OK: read_p promise rejected with error $_[0]");
+	})
+	->wait 
+}
+# I expect the following to hang because there's no way to fulfil the
+# internal promise(s) that Stripe should be waiting for.
+warn "Starting ioloop after first read";
+#sleep 3;
+Mojo::IOLoop->start;
+# Hmm. It doesn't hang. It seems that the algorithm is not so greedy
+# (or loopy?) after all. Am I not requesting that more processing is
+# done once some output buffer space becomes available? Something to
+# think about tomorrow...
+
+warn "Doing second read";
+#sleep 3;
+
+for my $port (0..2) {
+    $striper->read_p($port, 1)->then(
+	sub {
+	    # run tests on successful read_p
+	    is (length($_[0]), 1, "read_p for stripe $port returns 1 char");
+	    is ($_[0], substr("Lorem ipsum", 3 + $port,1), "Second byte of stripe $port OK")
 	},
 	sub {
 	    ok (0, "Not OK: read_p promise rejected with error $_[0]");
@@ -113,13 +138,28 @@ for my $port (0..2) {
 	->wait 
 }
 
-# I expect the following to hang because there's no way to fulfil the
-# internal promise(s) that Stripe should be waiting for.
+warn "Starting ioloop after second read";
+#sleep 3;
 Mojo::IOLoop->start;
 
-# Hmm. It doesn't hang. It seems that the algorithm is not so greedy
-# (or loopy?) after all. Am I not requesting that more processing is
-# done once some output buffer space becomes available? Something to
-# think about tomorrow...
+warn "Doing third read";
+#sleep 3;
+
+for my $port (0..2) {
+    $striper->read_p($port, 1)->then(
+	sub {
+	    # run tests on successful read_p
+	    is (length($_[0]), 1, "read_p for stripe $port returns 1 char");
+	    is ($_[0], substr("Lorem ipsum dolor", 6 + $port,1), "Third byte of stripe $port OK")
+	},
+	sub {
+	    ok (0, "Not OK: read_p promise rejected with error $_[0]");
+	})
+	->wait 
+}
+warn "Starting ioloop after third read";
+#sleep 3;
+Mojo::IOLoop->start;
+
 
 done_testing; exit;
