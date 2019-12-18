@@ -241,7 +241,7 @@ for my $ws (1,2) {
 	    stripes => 3,
 	);
 
-	for my $port (0,2,1) {
+	for my $port (0..2) {
 	    $striper->read_p($port, 1) -> then(
 		sub {
 		    my ($data, $eof) = @_;

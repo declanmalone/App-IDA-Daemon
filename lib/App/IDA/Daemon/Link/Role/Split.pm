@@ -77,7 +77,7 @@ sub split_process {
 	    substr($$dataref, 0, 1, "")
     }
     warn "About to advance process by $cols cols\n";
-    $self->sw->advance_process($cols);
+    $self->sw->advance_process($cols) if $cols;
     warn "After calling sw->advance_process\n";
 }
 
@@ -94,9 +94,7 @@ sub drain_output_row {
     # This could trigger a sw callback, which is how the internal
     # algorithm makes progress
     warn "drain_output_row: advance substream $port by $bytes\n";
-    # XXX once again, advance_substream doesn't exist and we just hang
-    # 
-    $self->sw->advance_write_substream($port, $bytes);
+    $self->sw->advance_write_substream($port, $bytes) if $bytes;
     warn "After advancing\n";
 
     $data;
@@ -207,10 +205,14 @@ sub _promise_to_read {
 
 sub _resolve_drained {
     my $self = shift;
-    die "No drain_promise to resolve\n"
-	unless defined(my $promise = $self->{drain_promise});
-    warn "Resolving drain_promise\n";
-    $promise->resolve;		# no data/eof (@_ will be undef)
+    my $promise = $self->{drain_promise};
+    if (defined($promise)) {
+	warn "Resolving drain_promise\n";
+	$promise->resolve;		# no data/eof (@_ will be undef)
+    } else {
+	# downgrade to warn
+	warn "No drain_promise to resolve\n"
+    }
 }
 
 sub _greedily_process {
@@ -289,7 +291,7 @@ sub _greedily_process {
 	    
 	    my $amount = length($data) / $self->{downstream_ports};
 	    warn "call advance_read($amount cols)\n";
-	    $self->sw->advance_read(length($data) / $self->{downstream_ports});
+	    $self->sw->advance_read($amount) if $amount;
 	    warn "After calling sw->advance_read\n";
 	}
 
@@ -327,16 +329,19 @@ sub _greedily_process {
 	    $self->{fill_promise} = $self->_promise_to_read($read_ok * $ports);
 	}
 
-	# write_ok is the output buffers' fill level (in columns)
-	if ($write_ok == $self->{window}) { # if at least one substream is full
-	    # This becomes resolved by:
-	    # * various new/pending calls to our read_p by downstream readers
-	    # * somebody calls _drain_port (via read_p or we do it below)
-	    # * the slowest substream eventually advances
-	    # * that triggers the callback in the sliding window class
-	    # * that callback resolves the promise
-	    warn "Output buffer full; need drain_promise\n";
-	    $self->{drain_promise} = Mojo::Promise->new;
+	if (1 || $process_ok) {
+	    # write_ok is the output buffers' fill level (in columns)
+	    warn "WRITE_OK is $write_ok\n";
+	    if ($write_ok == $self->{window}) { # if at least one substream is full
+		# This becomes resolved by:
+		# * various new/pending calls to our read_p by downstream readers
+		# * somebody calls _drain_port (via read_p or we do it below)
+		# * the slowest substream eventually advances
+		# * that triggers the callback in the sliding window class
+		# * that callback resolves the promise
+		warn "Output buffer full; need drain_promise\n";
+		$self->{drain_promise} = Mojo::Promise->new;
+	    }
 	}
 
 	# Step 3: Schedule next processing chunk (which will wait for
