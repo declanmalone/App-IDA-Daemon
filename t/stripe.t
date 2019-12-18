@@ -105,7 +105,7 @@ for my $port (0..2) {
 	sub {
 	    # run tests on successful read_p
 	    is (length($_[0]), 1, "read_p for stripe $port returns 1 char");
-	    is ($_[0], chr(ord('a') + $_), "First byte of stripe $port OK")
+	    is ($_[0], substr("Lorem", $port,1), "First byte of stripe $port OK")
 	},
 	sub {
 	    ok (0, "Not OK: read_p promise rejected with error $_[0]");

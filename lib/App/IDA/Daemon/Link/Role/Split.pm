@@ -145,7 +145,7 @@ sub _promise_to_read {
 sub _resolve_drained {
     my $self = shift;
     die "No drain_promise to resolve\n"
-	unless my $promise =  defined $self->{drain_promise};
+	unless defined(my $promise = $self->{drain_promise});
     warn "Resolving drain_promise\n";
     $promise->resolve;
 }
@@ -289,7 +289,7 @@ sub _drain_port {
     $self->{out_promises}->[$port] = [];
 
     # splice data bytes and update sliding window pointers
-    my $data = substr($self->{out_bufs}->[$port], 0, $avail, "");
+    my $data = substr($self->{out_bufs}->[$port], 0, $bytes, "");
 
     # Figure out correct EOF flag for this substream/port
     my $eof = 0;
