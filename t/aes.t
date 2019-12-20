@@ -1,5 +1,11 @@
 #!/usr/bin/env perl              # -*- perl -*-
 
+# Deprecated. I've rethought my original source/filter/sink design and
+# now I'm basing it on upstream elements providing a read_p() method
+# instead of raising on-read and on-close events.
+
+# See encryption.t for the latest tests. 
+
 use Mojo::Base -strict;
 
 use FindBin qw($Bin);
@@ -11,7 +17,7 @@ use Test::Mojo;
 use Mojo::IOLoop;
 use Mojo::Promise;
 
-use v5.20;
+use v5.10;
 use Carp;
 
 # Testing both the EncryptFilter and DecryptFilter classes

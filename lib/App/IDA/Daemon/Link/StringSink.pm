@@ -2,14 +2,11 @@ package App::IDA::Daemon::Link::StringSink;
 
 use v5.10;
 
-use parent App::IDA::Daemon::Link;
+# Need Mojo::Base here to get 'has' feature
+use Mojo::Base 'App::IDA::Daemon::Link';
 
-# Later, will refactor to do something like the following code from
-# StringSource:
 
-=begin future
-
-    use Role::Tiny::With;
+use Role::Tiny::With;
 
 # The Sink role provides the basic processing pattern, but it
 # delegates the actual internal stream provision to
@@ -22,27 +19,33 @@ with
 use Mojo::Promise;
 use Mojo::IOLoop;
 
-# A simple string sink to go at the end of a processing pipeline
-around BUILDARGS => sub {
-    my ($orig, $self, $args, $errors) = @_;
-# warn "In InternalStringSource's BUILDARGS\n";
-# warn "orig is a " . ref($orig) . "\n";
-# warn "self is a " . ref($self) . "\n";
-# warn "args is a " . ref($args) . "\n";
-# warn "errors is a " . ref($errors) . "\n";
+# In my original implementation of a processing pipeline using on-read
+# and on-close events my StringSource class allowed passing a "chunk"
+# argument to the constructor. That object would then parcel out the
+# string in chunks of that many bytes.
+#
+# In the redesigned code, it's Sinks that are in control of how much
+# data should be produced. I want an equivalent kind of parameter
+# here.
+#
+# In production code, I would set this to 0, meaning that downstream
+# links would accept any amount of data from the upstream link.
+# However, when testing it's very useful to use smaller chunk sizes
+# like a byte or two.
 
-if (defined $args->{source_buffer}) {
-    # warn "source_buffer is defined!\n";
-    $self->{source_buffer} = $args->{source_buffer};
-} else {
-    push @$errors,
-    "Role::InternalStringSource requires 'source_buffer' arg";
-}
-# chain other BUILDARGS
-$orig->($self, $args, $errors);
+# default number of bytes to read from downstream
+has preferred_bytes => 1;
+
+# We're a class, not a role, so we define BUILDARGS. Other composed
+# roles can then wrap around it.
+sub BUILDARGS {
+    my ($self, $args, $errors) = @_;
+    # constructor can be passed value of preferred_bytes:
+    if (defined $args->{preferred_bytes}) {
+	$self->preferred_bytes($args->{preferred_bytes});
+    }
 };
 
-=cut
 
 # Constructor will be handled by parent class, plus a BUILDARGS
 # section in some role (InternalStringSink)

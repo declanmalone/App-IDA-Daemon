@@ -153,14 +153,14 @@ with 'App::IDA::Daemon::Link::Role::Split';
 sub split_process {
     my ($self, $cols, $dataref) = @_;
     my $ports = $self->{downstream_ports};
-    # Stripe input col(s) -> output rows
-    # TODO: use matrix operation instead of strings
-    # TODO: also need to destreaddle
 
+    # Stripe input col(s) -> output rows
     $self->split_stream($cols);
     return;
 
     # old version using in/out bufs, manual advance
+    # DONE: use matrix operation instead of strings
+    # N/A: also need to destreaddle
     my $bytes = $cols * $ports;
     for (my $i =0; $i < $bytes; ++$i) {
 	$self->{out_bufs}->[$i % $ports] .=
@@ -174,8 +174,7 @@ sub split_process {
 sub accept_input_columns {
     my ($self, $data) = @_;
 
-    # we don't even have to destraddle because Algorithm takes care of
-    # that...
+    # we don't even have to destraddle because Algorithm does it
     return $self->fill_stream($data);
 
     # old version using in buf (which should have advanced read buf,

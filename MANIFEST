@@ -61,13 +61,10 @@ lib/App/IDA/Daemon/EncryptFilterP.pm
 lib/App/IDA/Daemon/IDASplitP.pm
 lib/App/IDA/Daemon/Link.pm
 lib/App/IDA/Daemon/Link/Combine.pm
-lib/App/IDA/Daemon/Link/Linear.pm
 lib/App/IDA/Daemon/Link/NullFilter.pm
 lib/App/IDA/Daemon/Link/Role/Filter.pm
 lib/App/IDA/Daemon/Link/Role/InternalStringSource.pm
-lib/App/IDA/Daemon/Link/Role/LinksUpstream.pm
 lib/App/IDA/Daemon/Link/Role/Source.pm
-lib/App/IDA/Daemon/Link/Split.pm
 lib/App/IDA/Daemon/Link/StringSource.pm
 lib/App/IDA/Daemon/SiloSink.pm
 lib/App/IDA/Daemon/StringSink.pm
@@ -82,7 +79,6 @@ script/ida-daemon
 t/aes.t
 t/auth.t
 t/basic.t
-t/chainable.t
 t/minauth.t
 t/promise_chain.t
 t/roles.t

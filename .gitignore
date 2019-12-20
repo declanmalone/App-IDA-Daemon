@@ -3,3 +3,6 @@ ida-daemon.conf
 MYMETA*
 _build/
 Build
+nytprof*
+cover_db/
+blib

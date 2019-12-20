@@ -188,16 +188,20 @@ Mojo::IOLoop->start;
 is ($from_finished,  uc $lorem, "string source -> to_upper -> string sink?");
 ok ($sink->to_string eq uc $lorem, "string source -> to_upper -> string sink?");
 
+# Test "NullFilter", which just copies input to output.
 
-# I haven't actually ported TapFilterP, EncryptFilterP or
-# DecryptFilterP yet (and may not do so, or I may use different names)
-# so I'll just finish testing here for now.
+my $control = 
+
 
 done_testing; exit;
 
-# Encrypt/Decrypt (tests ported from aes.t)
-use_ok("App::IDA::Daemon::EncryptFilterP");
-use_ok("App::IDA::Daemon::DecryptFilterP");
+# Port remaining *P classes and tests from here
+
+# Encrypt/Decrypt (tests ported from aes.t via EncryptFilterP)
+use_ok("App::IDA::Daemon::Link::EncryptFilter");
+use_ok("App::IDA::Daemon::Link::DecryptFilter");
+
+done_testing; exit;
 
 # and tap into the middle
 use_ok("App::IDA::Daemon::TapFilterP");
